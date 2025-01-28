@@ -1,9 +1,15 @@
+import sys
 import numpy as np
 import warnings
 
 
-# def round_coords(coords:np.array)-> np.array :
-#     out_array = [x for roundx in coords]
+
+def progress_bar(percent_done, bar_length=50):
+    #Display a progress bar
+    done_length = int(bar_length * percent_done / 100)
+    bar = '=' * done_length + '-' * (bar_length - done_length)
+    sys.stdout.write('[%s] %i%s\r' % (bar, percent_done, '%'))
+    sys.stdout.flush()
 
     
 
