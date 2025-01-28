@@ -1,0 +1,5 @@
+# file types that wont be tracked by Git
+*.svo
+*.svo2
+*.avi
+*.mp4
