@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from rtmlib import Wholebody, draw_skeleton
-from util import BodyWithFeet, PoseTracker, Body
+from StereoVision.Util.util import BodyWithFeet, PoseTracker, Body
 
 
 device = "cuda"  # cpu, cuda, mps

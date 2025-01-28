@@ -3,3 +3,6 @@
 *.svo2
 *.avi
 *.mp4
+
+# pycache folders
+**/__pycache__/
