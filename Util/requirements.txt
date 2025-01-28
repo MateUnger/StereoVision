@@ -1,0 +1,5 @@
+numpy==2.2.2
+opencv_python==4.5.5.64
+pyzed==4.2
+rtmlib==0.0.12
+StereoVision==1.0.4
