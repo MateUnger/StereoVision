@@ -1,12 +1,11 @@
+import os 
 import sys
 import pyzed.sl as sl
 from signal import signal, SIGINT
-import argparse 
-import os 
 
 
 output_folder = './stereo_videos'
-output_file_name = './straight_walk_SVGA120FPS_low_pos.svo2'
+output_file_name = '50cm_walk_3_HD120060FPS_low_pos.svo2'
 cam = sl.Camera()
 
 #Handler to deal with CTRL+C properly
@@ -19,15 +18,10 @@ signal(SIGINT, handler)
 
 def main():
     
-    # init = sl.InitParameters()
     init = sl.InitParameters(
-        # depth_mode=sl.DEPTH_MODE.NEURAL, # NONE, PERFORMANCE, QUALITY, ULTRA, NEURAL, NEURAL_PLUS (HORRIBLY SLOW)
-                                #  coordinate_units=sl.UNIT.CENTIMETER,
-                                #  coordinate_system=sl.COORDINATE_SYSTEM.RIGHT_HANDED_Y_UP,
-                                 camera_resolution = sl.RESOLUTION.SVGA, #HD1200, HD1080, SVGA
-                                 camera_fps = 120, #60,30,15, 120(SVGA only)
-                                #  depth_stabilization = 50 #reduce depth map jitter [0-100] (100 is too much, >=75 is fine. Produces some latent effect around the edges of the visual field)
-                                 )
+        camera_resolution = sl.RESOLUTION.HD1200, #HD1200, HD1080, SVGA
+        camera_fps = 60, #60,30,15, 120(SVGA only)
+        )
     
     init.async_image_retrieval = True; # This parameter can be used to record SVO in camera FPS even if the grab loop is running at a lower FPS (due to compute for ex.)
 

@@ -8,7 +8,7 @@ from Util.util import progress_bar
 def main():
     # Get input parameters
     input_folder = "./stereo_videos"
-    input_file_name = "straight_walk_HD120060FPS_low_pos.svo2"
+    input_file_name = "50cm_walk_1_HD120060FPS_low_pos.svo2"
 
     output_folder = "./stereo_videos"
     output_file_name = input_file_name.split(".")[0] + ".avi"
