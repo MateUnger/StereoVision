@@ -8,14 +8,14 @@ from Util.util import progress_bar
 def main():
     # Get input parameters
     input_folder = "./stereo_videos"
-    input_file_name = "50cm_walk_1_HD120060FPS_low_pos.svo2"
+    input_file_name = "50cm_walk_1_SVGA120FPS_low_pos.svo2"
 
     output_folder = "./stereo_videos"
     output_file_name = input_file_name.split(".")[0] + ".avi"
 
     if not os.path.isdir(input_folder):
         sys.stdout.write(
-            "Input directory doesn't exist. Check permissions or create it. \n {input_folder}, \n"
+            f"Input directory doesn't exist. Check permissions or create it. \n {input_folder}, \n"
         )
         exit()
 
