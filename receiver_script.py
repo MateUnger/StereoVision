@@ -26,6 +26,7 @@ import pyzed.sl as sl
 import cv2
 import argparse
 import socket 
+from pygame.time import Clock
 
 camera_settings = sl.VIDEO_SETTINGS.BRIGHTNESS
 str_camera_settings = "BRIGHTNESS"
@@ -71,6 +72,8 @@ def main():
     print_camera_information(cam)
     print_help()
     switch_camera_settings()
+
+    clock = Clock()
     
     key = ''
     while key != 113:  # for 'q' key
@@ -81,6 +84,8 @@ def main():
             if (not selection_rect.is_empty() and selection_rect.is_contained(sl.Rect(0,0,cvImage.shape[1],cvImage.shape[0]))):
                 cv2.rectangle(cvImage,(selection_rect.x,selection_rect.y),(selection_rect.width+selection_rect.x,selection_rect.height+selection_rect.y),(220, 180, 20), 2)
             cv2.imshow(win_name, cvImage)
+            clock.tick()
+            print(clock.get_fps())
         else:
             print("Error during capture : ", err)
             break
