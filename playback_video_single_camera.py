@@ -11,7 +11,7 @@ from Util.util import progress_bar
 def main():
 
     input_folder = "./stereo_videos"
-    input_file_name = "straight_walk_HD120060FPS.svo2"
+    input_file_name = "550cm_walk_non_flicker_HD120060FPS_low_pos.svo2"
     filepath = os.path.join(input_folder, input_file_name)
 
     input_type = sl.InputType()

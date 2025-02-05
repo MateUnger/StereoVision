@@ -53,10 +53,10 @@ def parse_args(init):
 def main():
 
     init = sl.InitParameters()
-    init.camera_resolution = sl.RESOLUTION.SVGA #AUTO, HD1080
+    init.camera_resolution = sl.RESOLUTION.HD1200 #AUTO, HD1080
     init.depth_mode = sl.DEPTH_MODE.NONE
     init.sdk_verbose = 1
-    init.camera_fps = 60
+    init.camera_fps = 30
     # init.async_image_retrieval = True
 
     parse_args(init)
@@ -68,9 +68,9 @@ def main():
     runtime = sl.RuntimeParameters()
     stream_params = sl.StreamingParameters()
     print("Streaming on port ",stream_params.port) #Get the port used to stream
-    stream_params.codec = sl.STREAMING_CODEC.H264
+    stream_params.codec = sl.STREAMING_CODEC.H265
     stream_params.bitrate = 4000
-    stream_params.target_framerate = 60
+    stream_params.target_framerate = 30
     status_streaming = cam.enable_streaming(stream_params) #Enable streaming
     if status_streaming != sl.ERROR_CODE.SUCCESS:
         print("Streaming initialization error: ", status_streaming)
@@ -80,7 +80,6 @@ def main():
     try : 
         while not exit_app:
             err = cam.grab(runtime)
-            #print(round(cam.get_current_fps()))
             if err == sl.ERROR_CODE.SUCCESS: 
                 sleep(0.0001)
     except KeyboardInterrupt:

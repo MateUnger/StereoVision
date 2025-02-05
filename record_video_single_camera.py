@@ -5,7 +5,7 @@ from signal import signal, SIGINT
 
 
 output_folder = './stereo_videos'
-output_file_name = '50cm_walk_3_HD120060FPS_low_pos.svo2'
+output_file_name = '50cm_walk_non_flicker_1_SVGA120FPS_low_pos.svo2'
 cam = sl.Camera()
 
 #Handler to deal with CTRL+C properly
@@ -19,8 +19,8 @@ signal(SIGINT, handler)
 def main():
     
     init = sl.InitParameters(
-        camera_resolution = sl.RESOLUTION.HD1200, #HD1200, HD1080, SVGA
-        camera_fps = 60, #60,30,15, 120(SVGA only)
+        camera_resolution = sl.RESOLUTION.SVGA, #HD1200, HD1080, SVGA
+        camera_fps = 120, #60,30,15, 120(SVGA only)
         )
     
     init.async_image_retrieval = True; # This parameter can be used to record SVO in camera FPS even if the grab loop is running at a lower FPS (due to compute for ex.)
