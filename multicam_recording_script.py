@@ -7,15 +7,11 @@ import numpy as np
 import pyzed.sl as sl
 import matplotlib.pyplot as plt
 
-
 zed_list = []
 current_images = []
 current_timestamps = []
 thread_list = []
 stop_signal = False
-
-
-
 
 def signal_handler(signal, frame):
     global stop_signal
@@ -30,8 +26,6 @@ def grab_run(index):
     global current_images
     global name_list
 
-    
-
     runtime = sl.RuntimeParameters()
     while not stop_signal:
 
@@ -40,9 +34,7 @@ def grab_run(index):
 
             zed_list[index].retrieve_image(current_images[index], sl.VIEW.LEFT)
             current_timestamps[index] = zed_list[index].get_timestamp(sl.TIME_REFERENCE.CURRENT).data_ns #time of function call
-
-
-        barrier.wait()
+        # barrier.wait()
 
         time.sleep(0.0001) #1ms
     zed_list[index].disable_recording()
@@ -65,7 +57,6 @@ def main():
     init.camera_resolution = sl.RESOLUTION.SVGA
     init.camera_fps = 120  # The framerate is lowered to avoid any USB3 bandwidth issues
     init.async_image_retrieval = False
-
 
     #List and open cameras
     name_list = []
