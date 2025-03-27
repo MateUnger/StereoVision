@@ -1,3 +1,7 @@
+"""
+Convert .svo2 video into .avi video using the stream from the left camera.
+"""
+
 import sys
 import pyzed.sl as sl
 import cv2
