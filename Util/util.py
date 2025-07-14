@@ -1,17 +1,19 @@
 import sys
 import numpy as np
 import warnings
+import numpy as np
+import importlib
 
+rtmlib_module = importlib.import_module("rtmlib")
 
 
 def progress_bar(percent_done, bar_length=50):
-    #Display a progress bar
+    # Display a progress bar
     done_length = int(bar_length * percent_done / 100)
-    bar = '=' * done_length + '-' * (bar_length - done_length)
-    sys.stdout.write('[%s] %i%s\r' % (bar, percent_done, '%'))
+    bar = "=" * done_length + "-" * (bar_length - done_length)
+    sys.stdout.write("[%s] %i%s\r" % (bar, percent_done, "%"))
     sys.stdout.flush()
 
-    
 
 class BodyWithFeet:
     """
@@ -175,10 +177,10 @@ class PoseTracker:
         det_frequency: int = 1,
         tracking: bool = True,
         tracking_thr: float = 0.3,
-        mode: str = "balanced",
+        mode: str = "performance",
         to_openpose: bool = False,
         backend: str = "onnxruntime",
-        device: str = "cpu",
+        device: str = "gpu",
     ):
 
         model = solution(
@@ -288,6 +290,57 @@ class PoseTracker:
             track_id = -1
 
         return track_id, match_result
+
+
+class Custom:
+    def __init__(
+        self,
+        det_class: str = None,
+        det: str = None,
+        det_input_size: tuple = (640, 640),
+        pose_class: str = None,
+        pose: str = None,
+        pose_input_size: tuple = (192, 256),
+        mode: str = None,
+        to_openpose: bool = False,
+        backend: str = "onnxruntime",
+        device: str = "cuda",
+    ):
+
+        if det_class is not None:
+            try:
+                det_class = getattr(rtmlib_module, det_class)
+                self.det_model = det_class(
+                    det, model_input_size=det_input_size, backend=backend, device=device
+                )
+                self.one_stage = False
+
+            except ImportError:
+                raise ImportError(f"{det_class} is not supported by rtmlib.")
+        else:
+            self.one_stage = True
+
+        if pose_class is not None:
+            try:
+                pose_class = getattr(rtmlib_module, pose_class)
+                self.pose_model = pose_class(
+                    pose,
+                    model_input_size=pose_input_size,
+                    to_openpose=to_openpose,
+                    backend=backend,
+                    device=device,
+                )
+            except ImportError:
+                raise ImportError(f"{pose_class} is not supported by rtmlib.")
+
+    def __call__(self, image: np.ndarray):
+        if self.one_stage:
+            keypoints, scores = self.pose_model(image)
+        else:
+            bboxes = self.det_model(image)
+            keypoints, scores = self.pose_model(image, bboxes=bboxes)
+
+        return keypoints, scores
 
 
 class Body:

@@ -3,6 +3,8 @@
 *.svo2
 *.avi
 *.mp4
+*.npy
+*.npz
 
 # pycache folders
 **/__pycache__/
