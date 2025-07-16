@@ -1,0 +1,18 @@
+{
+    "NO_OF_FRAMES": 6337.0,
+    "NO_OF_CAMERAS": 6.0,
+    "NO_OF_MARKERS": 23.0,
+    "FREQUENCY": 100.0,
+    "NO_OF_ANALOG": 0.0,
+    "ANALOG_FREQUENCY": 0.0,
+    "DESCRIPTION": "--",
+    "TIME_STAMP_QUALISYS": "2025-03-11, 14:40:58.462",
+    "TIME_STAMP_FROM_SYSTEM_START": "18661.47475990",
+    "DATA_INCLUDED": "3D",
+    "uuid": "907A7BAA-170A-4725-8EEB-502BCB369EFA",
+    "filename": "6AB0FAC1-DD15-41EB-A8BF-ED57403D62AA",
+    "timestamp_start": "2025-03-11T13:38:10Z",
+    "timestamp_stop": "2025-03-11T13: 39: 24Z",
+    "timestamp_qualisys_start": 1741700367242224200,
+    "timestamp_qualisys_stop": 1741700367242224384
+}
