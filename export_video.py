@@ -17,10 +17,11 @@ def main():
 
     # Get input parameters
     # input_folder = "c:/Users/unger/Work/Motion sensing/Code/alphapose/sl_vids/stick_8A1657ED-B002-4412-B6EA-04C8B2130D54"
-    input_folder = "./stereo_videos/validation_test"
+    input_folder = "./stereo_videos/ken"
     # input_file_name = "43804892.svo2"
 
-    input_file_names = ["43804892.svo2", "43916681.svo2"]
+    # input_file_names = ["43804892.svo2", "43916681.svo2"]
+    input_file_names = ["43804892.svo2"]
 
     output_folder = input_folder
 

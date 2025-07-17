@@ -1,3 +1,4 @@
+-e git+https://github.com/MVIG-SJTU/AlphaPose.git@c60106d19afb443e964df6f06ed1842962f5f1f7#egg=alphapose
 asttokens @ file:///home/conda/feedstock_root/build_artifacts/asttokens_1733250440834/work
 attrs==25.1.0
 backcall==0.2.0
@@ -12,7 +13,7 @@ coloredlogs @ file:///C:/b/abs_5atxid9v2h/croot/coloredlogs_1736873933380/work
 comm @ file:///home/conda/feedstock_root/build_artifacts/comm_1733502965406/work
 contourpy @ file:///C:/b/abs_f2u2o_8s9g/croot/contourpy_1732540071787/work
 cycler @ file:///tmp/build/80754af9/cycler_1637851556182/work
-Cython==3.0.11
+cython==3.0.11
 debugpy @ file:///C:/b/abs_bf9oo2vhxp/croot/debugpy_1736269476451/work
 decorator @ file:///home/conda/feedstock_root/build_artifacts/decorator_1733236420667/work
 defusedxml==0.7.1
@@ -45,12 +46,14 @@ mkl_fft @ file:///C:/Users/dev-admin/mkl/mkl_fft_1730823082242/work
 mkl_random @ file:///C:/Users/dev-admin/mkl/mkl_random_1730822522280/work
 mpmath @ file:///C:/Users/dev-admin/perseverance-python-buildout/croot/mpmath_1699484863771/work
 multiview_calib @ file:///C:/Users/unger/Work/Motion%20sensing/Code/multiview_calib
+munkres==1.1.4
+natsort==8.4.0
 nbclient==0.10.2
 nbconvert==7.16.6
 nbformat==5.10.4
 nest_asyncio @ file:///home/conda/feedstock_root/build_artifacts/nest-asyncio_1733325553580/work
 numexpr @ file:///C:/b/abs_05o8p7bfml/croot/numexpr_1730215959182/work
-numpy==1.26.0
+numpy==2.3.1
 onnxruntime-gpu @ file:///C:/Users/mark/miniforge3/conda-bld/onnxruntime_1735406817872/work/build-ci/Release/dist/onnxruntime_gpu-1.20.1-cp312-cp312-win_amd64.whl#sha256=00277ed6954e6c51eaa62089eee91a9ec2ba8097078adf00994717f8b0de0c1d
 opencv-contrib-python==4.11.0.86
 opencv-python==4.5.5.64
@@ -77,7 +80,7 @@ pyreadline3 @ file:///C:/Users/dev-admin/perseverance-python-buildout/croot/pyre
 python-dateutil @ file:///home/conda/feedstock_root/build_artifacts/python-dateutil_1733215673016/work
 pytz @ file:///C:/b/abs_6ap4tsz1ox/croot/pytz_1713974360290/work
 pywin32==308
-pyzed @ file:///C:/Users/unger/Work/Motion%20sensing/Papers/Human/Code/pyzed-4.2-cp312-cp312-win_amd64.whl#sha256=ba7f0e8413c94c090194e538b5c50afcd2ce3f5360650f0076e7c5b78348eeae
+pyzed @ file:///C:/Users/unger/pyzed-5.0-cp312-cp312-win_amd64.whl#sha256=c16ac8044c7368bf02563eb256ec64493c666ae5bb40c323fc9241aa734de239
 pyzmq @ file:///C:/b/abs_f3yte6j5yn/croot/pyzmq_1734711069724/work
 referencing==0.36.2
 requests==2.32.3
@@ -90,6 +93,7 @@ six @ file:///home/conda/feedstock_root/build_artifacts/six_1733380938961/work
 soupsieve==2.6
 stack_data @ file:///home/conda/feedstock_root/build_artifacts/stack_data_1733569443808/work
 sympy @ file:///C:/b/abs_4ay0cgwu2w/croot/sympy_1734629241647/work
+timm==0.1.20
 tinycss2==1.4.0
 tornado @ file:///C:/b/abs_7cyu943ybx/croot/tornado_1733960510898/work
 tqdm==4.67.1
