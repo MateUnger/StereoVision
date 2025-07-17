@@ -7,13 +7,15 @@ import pyzed.sl as sl
 import cv2
 import os
 from Util.util import progress_bar
+from Util.log_util import get_logger
 
 
 def main():
+
+    # Initialize logger
+    log = get_logger(os.path.basename(__file__).split(".")[0])
+
     # Get input parameters
-    # input_folder = (
-    #     "F:/sl_validation_data/Mate/slowwalking_E2878F0A-2A23-4AED-B418-D4F61A270D73"
-    # )
     # input_folder = "c:/Users/unger/Work/Motion sensing/Code/alphapose/sl_vids/stick_8A1657ED-B002-4412-B6EA-04C8B2130D54"
     input_folder = "./stereo_videos/validation_test"
     # input_file_name = "43804892.svo2"
@@ -23,10 +25,13 @@ def main():
     output_folder = input_folder
 
     if not os.path.isdir(input_folder):
-        sys.stdout.write(
-            f"Input directory doesn't exist. Check permissions or create it. \n {input_folder}, \n"
-        )
+        log.error(f"Input directory doesn't exist:b{input_folder}")
         exit()
+
+    # Check if output folder exists, if not create it
+    if not os.path.isdir(output_folder):
+        os.makedirs(output_folder)
+
     for file in input_file_names:
         # Specify SVO path parameter
         init_params = sl.InitParameters()
@@ -40,7 +45,7 @@ def main():
         # Open the SVO file specified as a parameter
         err = zed.open(init_params)
         if err != sl.ERROR_CODE.SUCCESS:
-            sys.stdout.write(repr(err))
+            log.error(repr(err))
             zed.close()
             exit()
 
@@ -65,20 +70,20 @@ def main():
             (width, height),
         )
         if not video_writer.isOpened():
-            sys.stdout.write(
-                "OpenCV video writer cannot be opened. Please check the .avi file path and write "
-                "permissions.\n"
-            )
+            log.error("OpenCV video writer cannot be opened")
             zed.close()
             exit()
 
         rt_param = sl.RuntimeParameters()
 
         # Start SVO conversion to AVI/SEQUENCE
-        sys.stdout.write("Converting SVO... Use Ctrl-C to interrupt conversion.\n")
+        # sys.stdout.write("Converting SVO... Use Ctrl-C to interrupt conversion")
+        log.info(
+            f"Converting {os.path.join(input_folder, file)}... num frames: {nb_frames}, framerate: {svo_frame_rate}"
+        )
 
-        print(f"total number of frames: {nb_frames}")
-        print(f"framerate of video:     {svo_frame_rate}")
+        # print(f"total number of frames: {nb_frames}")
+        # print(f"framerate of video:     {svo_frame_rate}")
 
         while True:
             err = zed.grab(rt_param)
@@ -98,7 +103,8 @@ def main():
                 progress_bar((svo_position + 1) / nb_frames * 100, 30)
             if err == sl.ERROR_CODE.END_OF_SVOFILE_REACHED:
                 progress_bar(100, 30)
-                sys.stdout.write("\n SVO end has been reached. Exiting now. \n")
+                # sys.stdout.write("\n SVO end has been reached. Exiting now. \n")
+                log.info(f"Done {os.path.join(input_folder, file)}.")
                 break
         # Close the video writer
         video_writer.release()
