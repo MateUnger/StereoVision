@@ -6,8 +6,8 @@ import sys
 import pyzed.sl as sl
 import cv2
 import os
-from Util.util import progress_bar
-from Util.log_util import get_logger
+from .Util.util import progress_bar
+from .Util.log_util import get_logger
 
 
 def export_svo_avi(input_path: str, output_path: str = "default") -> int:
@@ -32,7 +32,7 @@ def export_svo_avi(input_path: str, output_path: str = "default") -> int:
 
     if not os.path.exists(input_path):
         log.error(f"Input directory doesn't exist:b{input_path}")
-        exit()
+        sys.exit()
 
     # Check if output folder exists, if not create it
     # if not os.path.exists(output_path):
@@ -51,7 +51,7 @@ def export_svo_avi(input_path: str, output_path: str = "default") -> int:
     if err != sl.ERROR_CODE.SUCCESS:
         log.error(repr(err))
         zed.close()
-        exit()
+        sys.exit()
 
     # Get image size
     image_size = zed.get_camera_information().camera_configuration.resolution
@@ -76,7 +76,7 @@ def export_svo_avi(input_path: str, output_path: str = "default") -> int:
     if not video_writer.isOpened():
         log.error("OpenCV video writer cannot be opened")
         zed.close()
-        exit()
+        sys.exit()
 
     rt_param = sl.RuntimeParameters()
 
@@ -108,10 +108,3 @@ def export_svo_avi(input_path: str, output_path: str = "default") -> int:
 
     zed.close()
     return 0
-
-
-res = export_svo_avi(
-    r"C:\Users\unger\Work\Motion sensing\Code\StereoVision\stereo_videos\ken\43916681.svo2",
-    r"C:\Users\unger\Work\Motion sensing\Code\StereoVision\stereo_videos\43916681.avi",
-)
-print(res)
