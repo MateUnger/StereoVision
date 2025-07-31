@@ -1,2 +1,8 @@
 2025-07-17 15:49:50,121 export_video INFO Converting ./stereo_videos/ken\43804892.svo2... num frames: 3924, framerate: 60
 2025-07-17 15:54:32,671 export_video INFO Done ./stereo_videos/ken\43804892.svo2.
+2025-07-31 11:18:53,138 export_video INFO Converting ./stereo_videos/ken\43804892.svo2... num frames: 3924, framerate: 60
+2025-07-31 11:41:04,256 export_video ERROR Input directory doesn't exist:bstereo_videos\ken#916681.svo2
+2025-07-31 11:45:04,635 export_video INFO Converting C:\Users\unger\Work\Motion sensing\Code\StereoVision\stereo_videos\ken\43916681.avi... num frames: 3935, framerate: 60
+2025-07-31 11:50:00,348 export_video INFO Done C:\Users\unger\Work\Motion sensing\Code\StereoVision\stereo_videos\ken\43916681.avi.
+2025-07-31 12:11:17,346 export_video INFO Converting C:\Users\unger\Work\Motion sensing\Code\StereoVision\stereo_videos\43916681.avi... num frames: 3935, framerate: 60
+2025-07-31 12:16:14,364 export_video INFO Done C:\Users\unger\Work\Motion sensing\Code\StereoVision\stereo_videos\43916681.avi.
