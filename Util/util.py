@@ -3,6 +3,9 @@ import numpy as np
 import warnings
 import numpy as np
 import importlib
+from scipy.signal import butter, filtfilt
+from scipy.interpolate import CubicSpline
+
 
 rtmlib_module = importlib.import_module("rtmlib")
 
@@ -76,9 +79,7 @@ class BodyWithFeet:
             det = self.MODE[mode]["det"]
             det_input_size = self.MODE[mode]["det_input_size"]
 
-        self.det_model = YOLOX(
-            det, model_input_size=det_input_size, backend=backend, device=device
-        )
+        self.det_model = YOLOX(det, model_input_size=det_input_size, backend=backend, device=device)
         self.pose_model = RTMPose(
             pose,
             model_input_size=pose_input_size,
@@ -183,9 +184,7 @@ class PoseTracker:
         device: str = "gpu",
     ):
 
-        model = solution(
-            mode=mode, to_openpose=to_openpose, backend=backend, device=device
-        )
+        model = solution(mode=mode, to_openpose=to_openpose, backend=backend, device=device)
 
         self.det_model = model.det_model
         self.pose_model = model.pose_model
@@ -438,3 +437,98 @@ class Body:
             keypoints, scores = self.pose_model(image, bboxes=bboxes)
 
         return keypoints, scores
+
+
+def interpolate_gaps(data: np.ndarray, fps: int, max_gap: float) -> np.ndarray:
+    """
+    Fills gaps below max_gap size along each dimension (1D) of the input array.
+    Args:
+        data (np.ndarray):  Input data with shape (n_keypoints, n_dims, n_frames).
+        fps (int):          Frames per second of the data.
+        max_gap (float):    Maximum gap size in seconds
+
+
+    """
+    n_keypoints, n_dims, n_frames = data.shape
+    max_gap_frames = int(max_gap * fps)
+
+    filled_data = np.copy(data)  # Preserve original data
+
+    for kpt in range(n_keypoints):
+        for dim in range(n_dims):
+            signal = data[kpt, dim, :]
+            nan_indices = np.where(np.isnan(signal))[0]
+
+            if len(nan_indices) == 0:
+                continue
+
+            # Identify NaN segments
+            diff = np.diff(nan_indices)
+            segment_starts = np.insert(nan_indices[np.where(diff > 1)[0] + 1], 0, nan_indices[0])
+            segment_ends = np.append(nan_indices[np.where(diff > 1)[0]], nan_indices[-1])
+
+            # Interpolate gaps within the allowed size
+            for start, end in zip(segment_starts, segment_ends):
+                gap_size = end - start + 1
+                if gap_size <= max_gap_frames:
+
+                    valid_indices = np.where(~np.isnan(signal))[0]
+                    # fit cubic spline if there are enough points
+                    if len(valid_indices) >= 2:
+                        cs = CubicSpline(valid_indices, signal[valid_indices])
+                        filled_data[kpt, dim, start : end + 1] = cs(np.arange(start, end + 1))
+
+                    # use linear interpolation if not enough valid points
+                    else:
+                        non_nan_idx = np.where(~np.isnan(signal))[0]
+                        filled_data[kpt, dim, :] = np.interp(
+                            np.arange(n_frames), non_nan_idx, signal[non_nan_idx]
+                        )
+
+    return filled_data
+
+
+def filter_data(
+    data: np.ndarray, sampling_rate: float, cutoff: float, order: int, gap_size: int
+) -> np.ndarray:
+    """
+    Interpolates and applies a low-pass filter to data (with NaNs).
+
+    Args:
+        data (np.ndarray):      Input data with shape (n_kpt, n_dims, n_frames).
+        sampling_rate (float):  Sampling rate of the data.
+        cutoff (float):         Cutoff frequency for the low-pass filter.
+        order (int):            Order of the Butterworth filter.
+        gap_size (int):         Maximum size (in seconds) of gaps to fill
+
+    Returns:
+        filtered_data (np.ndarray): Interpolated and filtered data with the origianl Nan values in place.
+
+    """
+    n_kpt, n_dims, n_frames = data.shape
+    data = interpolate_gaps(data, sampling_rate, gap_size)  # Fill short gaps
+    filtered_data = data.copy()
+
+    # Design Butterworth low-pass filter
+    b, a = butter(N=order, Wn=cutoff / (0.5 * sampling_rate), btype="low", analog=False)
+
+    for kpt in range(n_kpt):
+        for dim in range(n_dims):
+            trajectory = data[kpt, dim, :]
+
+            # search for NaNs
+            nans = np.isnan(trajectory)
+
+            # if there are nans, interpolate the missing values for subsequent filtering
+            if np.any(nans):
+                valid_indices = ~nans
+                trajectory[nans] = np.interp(
+                    np.flatnonzero(nans), np.flatnonzero(valid_indices), trajectory[valid_indices]
+                )
+
+            trajectory = filtfilt(b, a, trajectory)  # Apply filter
+            trajectory[nans] = np.nan  # Restore NaNs
+
+            filtered_data[kpt, dim, :] = trajectory
+
+    return filtered_data
