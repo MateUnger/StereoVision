@@ -105,8 +105,10 @@ class BodyWithFeet:
         return keypoints, scores
 
 
-def compute_iou(bboxA, bboxB):
-    """Compute the Intersection over Union (IoU) between two boxes .
+def compute_iou(bboxA: list, bboxB: list) -> float:
+    """
+    Compute the Intersection over Union (IoU) between two boxes.
+    (How much two bboxes overlap relative to their combined area)
 
     Args:
         bboxA (list): The first bbox info (left, top, right, bottom, score).
@@ -116,15 +118,20 @@ def compute_iou(bboxA, bboxB):
         float: The IoU value.
     """
 
+    # find the corners of the intersection area
     x1 = max(bboxA[0], bboxB[0])
     y1 = max(bboxA[1], bboxB[1])
     x2 = min(bboxA[2], bboxB[2])
     y2 = min(bboxA[3], bboxB[3])
 
+    # calculate area of intersection
     inter_area = max(0, x2 - x1) * max(0, y2 - y1)
 
+    # area of bbox A & B
     bboxA_area = (bboxA[2] - bboxA[0]) * (bboxA[3] - bboxA[1])
     bboxB_area = (bboxB[2] - bboxB[0]) * (bboxB[3] - bboxB[1])
+
+    # area of union
     union_area = float(bboxA_area + bboxB_area - inter_area)
     if union_area == 0:
         union_area = 1e-5
@@ -159,18 +166,22 @@ def pose_to_bbox(keypoints: np.ndarray, expansion: float = 1.25) -> np.ndarray:
 
 
 class PoseTracker:
-    """Pose tracker for wholebody pose estimation.
+    """
+    Pose tracker for pose estimation.
 
     Args:
-        solution (type): rtmlib solutions, e.g. Wholebody, Body, etc.
-        det_frequency (int): Frequency of object detection.
+        solution (type): rtmlib solutions, e.g. Wholebody, Body, Custom, etc.
+        det_frequency (int): Frequency of object detection (performed every det_frequency number of frames).
         mode (str): 'performance', 'lightweight', or 'balanced'.
         to_openpose (bool): Whether to use openpose-style skeleton.
         backend (str): Backend of pose estimation model.
         device (str): Device of pose estimation model.
+
+    Returns:
+        faszom nem is mukodik
     """
 
-    MIN_AREA = 1000
+    MIN_AREA = 100
 
     def __init__(
         self,
@@ -178,15 +189,19 @@ class PoseTracker:
         det_frequency: int = 1,
         tracking: bool = True,
         tracking_thr: float = 0.3,
-        mode: str = "performance",
+        mode: str = "balanced",
         to_openpose: bool = False,
         backend: str = "onnxruntime",
         device: str = "gpu",
     ):
 
+        # load the predefined solution (detection model, estimation model, backend...)
         model = solution(mode=mode, to_openpose=to_openpose, backend=backend, device=device)
 
-        self.det_model = model.det_model
+        try:
+            self.det_model = model.det_model
+        except:  # rtmo
+            self.det_model = None
         self.pose_model = model.pose_model
 
         self.det_frequency = det_frequency
@@ -209,29 +224,36 @@ class PoseTracker:
 
     def __call__(self, image: np.ndarray):
 
-        if self.frame_cnt % self.det_frequency == 0:
-            bboxes = self.det_model(image)
-        else:
-            bboxes = self.bboxes_last_frame
+        # if a detection model is used
+        if self.det_model is not None:
+            # if it is the 1st frame, use bboxes from the frame
+            if self.frame_cnt % self.det_frequency == 0:
+                bboxes = self.det_model(image)
+            # not 1st frame,
+            else:
+                bboxes = self.bboxes_last_frame
+            keypoints, scores = self.pose_model(image, bboxes=bboxes)
 
-        keypoints, scores = self.pose_model(image, bboxes=bboxes)
+        # no detection model is used, use just pose estimator
+        else:  # rtmo
+            keypoints, scores = self.pose_model(image)
 
         if not self.tracking:
             # without tracking
-
             bboxes_current_frame = []
             for kpts in keypoints:
                 bbox = pose_to_bbox(kpts)
                 bboxes_current_frame.append(bbox)
+
         else:
             # with tracking
-
             if len(self.track_ids_last_frame) == 0:
                 self.next_id = len(self.bboxes_last_frame)
                 self.track_ids_last_frame = list(range(self.next_id))
 
             bboxes_current_frame = []
             track_ids_current_frame = []
+
             for kpts in keypoints:
                 bbox = pose_to_bbox(kpts)
 
@@ -243,10 +265,14 @@ class PoseTracker:
 
             self.track_ids_last_frame = track_ids_current_frame
 
+            # reorder keypoints, scores according to track_id
+            # keypoints = np.array([keypoints[i] for i in self.track_ids_last_frame])
+            # scores = np.array([scores[i] for i in self.track_ids_last_frame])
+
         self.bboxes_last_frame = bboxes_current_frame
         self.frame_cnt += 1
 
-        return keypoints, scores
+        return keypoints, scores, track_ids_current_frame, self.track_ids_last_frame
 
     def track_by_iou(self, bbox):
         """Get track id using IoU tracking greedily.
@@ -266,6 +292,8 @@ class PoseTracker:
         max_iou_score = -1
         max_index = -1
         match_result = None
+
+        # iterate bboxes of last frame
         for index, each_bbox in enumerate(self.bboxes_last_frame):
 
             iou_score = compute_iou(bbox, each_bbox)
@@ -292,6 +320,7 @@ class PoseTracker:
 
 
 class Custom:
+
     def __init__(
         self,
         det_class: str = None,
@@ -437,98 +466,3 @@ class Body:
             keypoints, scores = self.pose_model(image, bboxes=bboxes)
 
         return keypoints, scores
-
-
-def interpolate_gaps(data: np.ndarray, fps: int, max_gap: float) -> np.ndarray:
-    """
-    Fills gaps below max_gap size along each dimension (1D) of the input array.
-    Args:
-        data (np.ndarray):  Input data with shape (n_keypoints, n_dims, n_frames).
-        fps (int):          Frames per second of the data.
-        max_gap (float):    Maximum gap size in seconds
-
-
-    """
-    n_keypoints, n_dims, n_frames = data.shape
-    max_gap_frames = int(max_gap * fps)
-
-    filled_data = np.copy(data)  # Preserve original data
-
-    for kpt in range(n_keypoints):
-        for dim in range(n_dims):
-            signal = data[kpt, dim, :]
-            nan_indices = np.where(np.isnan(signal))[0]
-
-            if len(nan_indices) == 0:
-                continue
-
-            # Identify NaN segments
-            diff = np.diff(nan_indices)
-            segment_starts = np.insert(nan_indices[np.where(diff > 1)[0] + 1], 0, nan_indices[0])
-            segment_ends = np.append(nan_indices[np.where(diff > 1)[0]], nan_indices[-1])
-
-            # Interpolate gaps within the allowed size
-            for start, end in zip(segment_starts, segment_ends):
-                gap_size = end - start + 1
-                if gap_size <= max_gap_frames:
-
-                    valid_indices = np.where(~np.isnan(signal))[0]
-                    # fit cubic spline if there are enough points
-                    if len(valid_indices) >= 2:
-                        cs = CubicSpline(valid_indices, signal[valid_indices])
-                        filled_data[kpt, dim, start : end + 1] = cs(np.arange(start, end + 1))
-
-                    # use linear interpolation if not enough valid points
-                    else:
-                        non_nan_idx = np.where(~np.isnan(signal))[0]
-                        filled_data[kpt, dim, :] = np.interp(
-                            np.arange(n_frames), non_nan_idx, signal[non_nan_idx]
-                        )
-
-    return filled_data
-
-
-def filter_data(
-    data: np.ndarray, sampling_rate: float, cutoff: float, order: int, gap_size: int
-) -> np.ndarray:
-    """
-    Interpolates and applies a low-pass filter to data (with NaNs).
-
-    Args:
-        data (np.ndarray):      Input data with shape (n_kpt, n_dims, n_frames).
-        sampling_rate (float):  Sampling rate of the data.
-        cutoff (float):         Cutoff frequency for the low-pass filter.
-        order (int):            Order of the Butterworth filter.
-        gap_size (int):         Maximum size (in seconds) of gaps to fill
-
-    Returns:
-        filtered_data (np.ndarray): Interpolated and filtered data with the origianl Nan values in place.
-
-    """
-    n_kpt, n_dims, n_frames = data.shape
-    data = interpolate_gaps(data, sampling_rate, gap_size)  # Fill short gaps
-    filtered_data = data.copy()
-
-    # Design Butterworth low-pass filter
-    b, a = butter(N=order, Wn=cutoff / (0.5 * sampling_rate), btype="low", analog=False)
-
-    for kpt in range(n_kpt):
-        for dim in range(n_dims):
-            trajectory = data[kpt, dim, :]
-
-            # search for NaNs
-            nans = np.isnan(trajectory)
-
-            # if there are nans, interpolate the missing values for subsequent filtering
-            if np.any(nans):
-                valid_indices = ~nans
-                trajectory[nans] = np.interp(
-                    np.flatnonzero(nans), np.flatnonzero(valid_indices), trajectory[valid_indices]
-                )
-
-            trajectory = filtfilt(b, a, trajectory)  # Apply filter
-            trajectory[nans] = np.nan  # Restore NaNs
-
-            filtered_data[kpt, dim, :] = trajectory
-
-    return filtered_data
