@@ -25,8 +25,8 @@ with open("./Util/properties.json", "r") as json_file:
 
 
 # load file, display basic info
-# file_path = ".\\stereo_videos\\validation_test\\43916681.npz"
-file_path = ".\\stereo_videos\\validation_test\\wf.npz"
+file_path = ".\\stereo_videos\\validation_test\\43916681.npz"
+# file_path = ".\\stereo_videos\\validation_test\\wf.npz"
 # file_path = ".\\stereo_videos\\validation_test\\qualisys_mate_walking.npz"
 if file_path:
     data = np.load(file_path, allow_pickle=True)
@@ -37,7 +37,8 @@ if file_path:
 
 
 # vGait = data["pose_data"]
-vGait = data["keypoints_3d_world_frame"]
+# vGait = data["keypoints_3d"].transpose(1, 2, 0)
+vGait = data["keypoints_3d_wf"]
 print(f"data shape: {vGait.shape}")
 
 
@@ -87,7 +88,9 @@ class FrameViewer:
         zs = self.vGait[:, 2, idx]
         self.ax.scatter(xs, ys, zs, c="b", s=40, label="Keypoints")
 
-        self.ax.scatter(3.09417443, 0.19429838, -(-1.11145841), marker="D", c="r")
+        self.ax.scatter(
+            3.09417443, 0.19429838, -(-1.11145841), marker="D", c="r", label="stereo camera"
+        )
         self.ax.scatter(0, 0, 0, c="r", label="origin")
         self.ax.scatter(0.75, 0, 0)
         self.ax.scatter(0, 0.45, 0)

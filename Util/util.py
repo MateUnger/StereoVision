@@ -652,7 +652,7 @@ def filter_2d_keypoint(
     # x and y coordinates
     kp_x = keypoint[:, 0]
     kp_y = keypoint[:, 1]
-    conf = keypoint[:, 2]
+    # conf = keypoint[:, 2]
 
     filtered_keypoint = np.empty_like(keypoint)
     filtered_x, filtered_y = (
@@ -756,7 +756,7 @@ def filter_2d_keypoint(
 
     # stack filtered coords, use original confidence
     # filtered_keypoint = np.stack([filtered_x, filtered_y, keypoint[:, 2]], axis=1)
-    filtered_keypoint = np.stack([filtered_x, filtered_y, conf], axis=1)
+    filtered_keypoint = np.stack([filtered_x, filtered_y], axis=1)
 
     return filtered_keypoint
 
