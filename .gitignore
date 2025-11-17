@@ -5,6 +5,7 @@
 *.mp4
 *.npy
 *.npz
+*.ply
 
 # pycache folders
 **/__pycache__/

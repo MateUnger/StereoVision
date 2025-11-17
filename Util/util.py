@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 from numpy.fft import fft, ifft
 from scipy import signal as sp_signal
+from typing import Literal
 
 
 rtmlib_module = importlib.import_module("rtmlib")
@@ -211,7 +212,12 @@ def interpolate_gaps(data: np.ndarray, fps: int, max_gap: float) -> np.ndarray:
 
 
 def filter_data(
-    data: np.ndarray, sampling_rate: float, cutoff: float, order: int, gap_size: int
+    data: np.ndarray,
+    sampling_rate: float,
+    filter_type: Literal["lowpass", "bandpass"],
+    cutoff: list,
+    order: int,
+    gap_size: int,
 ) -> np.ndarray:
     """
     Interpolates and applies a low-pass filter to data (with NaNs).
@@ -229,10 +235,15 @@ def filter_data(
     """
     n_kpt, n_dims, n_frames = data.shape
     data = interpolate_gaps(data, sampling_rate, gap_size)  # Fill short gaps
-    filtered_data = data.copy()
+    filtered_data = copy.deepcopy(data)
 
+    match filter_type:
+        case "lowpass":
+            cutoff = cutoff[0]
+        case "bandpass":
+            cutoff = np.asarray(cutoff)
     # Design Butterworth low-pass filter
-    b, a = butter(N=order, Wn=cutoff / (0.5 * sampling_rate), btype="low", analog=False)
+    b, a = butter(N=order, Wn=cutoff, btype=filter_type, analog=False, fs=sampling_rate)
 
     for kpt in range(n_kpt):
         for dim in range(n_dims):

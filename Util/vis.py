@@ -4,18 +4,15 @@ import pandas as pd
 import json
 import glob
 from util import *
-from tkinter import Tk
-from tkinter.filedialog import askopenfilename
+
+# from tkinter import Tk
+# from tkinter.filedialog import askopenfilename
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import proj3d
 
-# interactive matplotlib in jupyter
-# %matplotlib ipympl
 
 # TODO: color foot keyppoints based on gc period (c1 when on ground, c2 when in air)
 # stride cycle starts with first IC (heel)
-#
 
 
 # load static parameters from file
@@ -26,31 +23,29 @@ with open("./Util/properties.json", "r") as json_file:
 
 # load file, display basic info
 file_path = ".\\stereo_videos\\validation_test\\43916681.npz"
-# file_path = ".\\stereo_videos\\validation_test\\wf.npz"
 # file_path = ".\\stereo_videos\\validation_test\\qualisys_mate_walking.npz"
 if file_path:
     data = np.load(file_path, allow_pickle=True)
     print(f"file:  {os.path.basename(file_path)}")
     print(f"keys:  {list(data.keys())}")
-    # print(f"shape: {data['pose_data'].shape}")
-    # print(f'lenght : {data['pose_data'].shape[2]/properties["fps"]:.1f} seconds')
 
 
 # vGait = data["pose_data"]
-# vGait = data["keypoints_3d"].transpose(1, 2, 0)
-vGait = data["keypoints_3d_wf"]
-print(f"data shape: {vGait.shape}")
+# vGait = data["keypoints_3d"]
+vGait = data["keypoints_3d_filtered"]
+# print(f"data shape: {vGait.shape}")
 
 
 kpt_labels = data["kpt_labels"].tolist()
 
-vGait = filter_data(
-    vGait,
-    properties["fps"],
-    properties["filter_cutoff"],
-    properties["filter_order"],
-    properties["max_gap"],
-)
+# vGait = filter_data(
+#     vGait,
+#     properties["fps"],
+#     "lowpass",
+#     [properties["filter_cutoff"]],
+#     properties["filter_order"],
+#     properties["max_gap"],
+# )
 print(f"shape: {vGait.shape}")
 
 
