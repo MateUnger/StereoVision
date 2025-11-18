@@ -108,7 +108,7 @@ def get_points(
     return [frame_img_points, frame_obj_points]
 
 
-def walk_direction_peaks(data: np.ndarray, kpt_labels: list, fps: float) -> np.ndarray:
+def walk_direction_peaks(data: np.ndarray, kpt_labels: list, sampling_fr: float) -> np.ndarray:
     """
     Determines walking state (straight/turning) based on shoulder coordinates using peak detection method.
 
@@ -138,7 +138,7 @@ def walk_direction_peaks(data: np.ndarray, kpt_labels: list, fps: float) -> np.n
         )
 
     # min distance from peak to peak (2 seconds of straight movement) in samples
-    min_peak_distance = 2 * fps
+    min_peak_distance = 2 * sampling_fr
 
     peaks, peak_properties = find_peaks(shoulder_diff, height=0.3, distance=min_peak_distance)
     widths, width_heights, left_ips, right_ips = peak_widths(
@@ -220,7 +220,7 @@ def filter_data(
     gap_size: int,
 ) -> np.ndarray:
     """
-    Interpolates and applies a low-pass filter to data (with NaNs).
+    Interpolates and applies filter to data (with NaNs).
 
     Args:
         data (np.ndarray):      Input data with shape (n_kpt, n_dims, n_frames).
@@ -363,8 +363,11 @@ def bruening_ridge_detection(
         properties: dictionary of static parameters from properties.json
 
     Returns:
+
         ICs: list of Initial Contact (IC) frame indices
+
         FCs: list of Final Contact (FC) frame indices
+
         velocity: computed walking velocity (m/s)
 
     """
