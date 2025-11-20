@@ -108,6 +108,58 @@ def get_points(
     return [frame_img_points, frame_obj_points]
 
 
+def get_turns_and_perspective(
+    data: np.ndarray, kpt_labels: list, sampling_fr: float, min_walk_duration: float = 2
+) -> tuple:
+    """
+    Identifies turning segments (straight/turning) and perspective (front / back) based on shoulder coordinates using peak detection method.
+
+    Args:
+        data:               Input data with shape (n_keypoints, n_dims, n_frames).
+        kpt_labels:         List of keypoint labels corresponding to data (left_ankle, nose, etc).
+        fps:                sampling frequency
+        min_walk_duration:  min elapsed time (in seconds) between turns (1 turn = 180 deg)
+
+    Returns:
+        turn_mask: boolean array indicating straight turning segments (1) and straight segments (0).
+
+        perspective: bollean array indicating frontal facing (1) and back facing (0) segments.
+    """
+    # get the y coord of shoulders (for qualisys x-y plane is horizontal, y coord was forwards/backwards movement)
+    shoulder_R = data[kpt_labels.index("right_shoulder"), 1, :]
+    shoulder_L = data[kpt_labels.index("left_shoulder"), 1, :]
+
+    shoulder_diff = np.abs(np.diff(shoulder_R - shoulder_L))
+    shoulder_diff = shoulder_diff / np.nanmax(shoulder_diff)
+
+    # Interpolate NaNs in shoulder_diff
+    if np.any(np.isnan(shoulder_diff)):
+        nans = np.isnan(shoulder_diff)
+        not_nans = ~nans
+        shoulder_diff[nans] = np.interp(
+            np.flatnonzero(nans), np.flatnonzero(not_nans), shoulder_diff[not_nans]
+        )
+
+    # min distance from peak to peak (2 seconds of straight movement) in samples
+    min_peak_distance = min_walk_duration * sampling_fr
+
+    peaks, peak_properties = find_peaks(shoulder_diff, height=0.3, distance=min_peak_distance)
+    widths, width_heights, left_ips, right_ips = peak_widths(
+        x=shoulder_diff, peaks=peaks, rel_height=0.8
+    )
+
+    # create mask to indicate straight walking segments (straight=0, turn=1)
+    turn_mask = np.zeros_like(shoulder_R)
+    for left_base_idx, right_base_idx in zip((left_ips).astype(int), right_ips.astype(int)):
+        # turn_segment_length = right_base_idx - left_base_idx
+        turn_mask[left_base_idx:right_base_idx] = 1
+
+    # create mask to indicate front vs back perspectives (front=1, back=0)
+    perspective = np.where(shoulder_L > shoulder_R, np.True_, np.False_)
+    turn_mask = turn_mask.astype(np.bool)
+    return (turn_mask, perspective)
+
+
 def walk_direction_peaks(data: np.ndarray, kpt_labels: list, sampling_fr: float) -> np.ndarray:
     """
     Determines walking state (straight/turning) based on shoulder coordinates using peak detection method.
