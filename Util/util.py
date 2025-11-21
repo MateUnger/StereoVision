@@ -43,6 +43,193 @@ class Pattern:
         self.pattern_points *= square_size
 
 
+def get_gait_events(
+    data: np.ndarray,
+    kpt_labels: list,
+    side: Literal["left", "right"],
+    properties: dict,
+    velocity: float,
+    turn_mask: np.ndarray,
+    perspective: np.ndarray,
+    create_debug_figure: bool = False,
+    file_path: str = "",
+) -> tuple:
+    """
+    Identifies Gait Events (GE) using the velocity of markers on the foot (heel, toe, ankle).
+    Also calculates the velocity profile to iteratively update GEs (2 stage).
+
+    Args:
+        data: interpolated and filtered keypoint data (keypoints x dims x frames)
+        velocity: initial walking velocity estimate (m/s)
+        side: 'left' or 'right'
+        kpt_labels: list of keypoint labels corresponding to data (left_ankle, nose, etc)
+        properties: dictionary of static parameters from properties.json
+
+    Returns:
+        ICs: list of Initial Contact (IC) frame indices
+        FCs: list of Final Contact (FC) frame indices
+        velocity: computed walking velocity (m/s)
+    """
+
+    fs = properties["fps"]
+    heel_thr = properties["heel_thr"] * velocity
+    # use ankle marker too (in case the other 2 are not visible, also better for stereo - no obstuction issues)
+    ankle_thr = properties["heel_thr"] * velocity
+    big_toe_thr = properties["toe_thr"] * velocity
+
+    # Extract trajectories
+    heel = data[kpt_labels.index(f"{side}_heel"), :, :]
+    big_toe = data[kpt_labels.index(f"{side}_big_toe"), :, :]
+    ankle = data[kpt_labels.index(f"{side}_ankle"), :, :]
+
+    # Compute 3D velocity magnitudes
+    heel_vel = np.linalg.norm(np.diff(heel, axis=1), axis=0) * fs
+    ankle_vel = np.linalg.norm(np.diff(ankle, axis=1), axis=0) * fs
+    big_toe_vel = np.linalg.norm(np.diff(big_toe, axis=1), axis=0) * fs
+
+    # Ground contact detection based on thresholds
+    ground_contact = (
+        (heel_vel < heel_thr) | (ankle_vel < ankle_thr) | (big_toe_vel < big_toe_thr)
+    ).astype(int)
+
+    # Remove too short ground contact periods
+    min_gc_duration = int(properties["stance_min"] * fs)
+    min_no_gc_duration = int(properties["swing_min"] * fs)
+
+    contact_diff = np.diff(
+        np.pad(ground_contact, 1, "constant")
+    )  # NOTE:pad beginning and end of array with 0 for diff
+    starts = np.nonzero(contact_diff == 1)[0]
+    ends = np.nonzero(contact_diff == -1)[0]
+
+    for start, end in zip(starts, ends):
+        if end - start < min_gc_duration:
+            ground_contact[start:end] = 0
+
+    # Remove too short swing periods
+    contact_diff = np.diff(np.pad(ground_contact, 1, "constant"))
+    starts = np.nonzero(contact_diff == 1)[0]
+    ends = np.nonzero(contact_diff == -1)[0]
+
+    for start, end in zip(starts, ends):
+        if end - start < min_no_gc_duration:
+            ground_contact[start:end] = 1
+
+    # exclude gait events of turn segments
+    ground_contact_diff = np.pad(np.diff(ground_contact), 1, "constant")
+    ground_contact_diff_straight = np.where(turn_mask, 0, ground_contact_diff)
+
+    # Identify initial contacts (ICs) and final contacts (FCs)
+    ICs = np.nonzero(ground_contact_diff_straight == 1)[0] + 1
+    FCs = np.nonzero(ground_contact_diff_straight == -1)[0] + 1
+
+    # Compute walking velocity from stride lengths and durations
+    # also filter false positive gait events based on them
+    stride_lengths = []
+    stride_durations = []
+    bad_GE_indices = []
+
+    direction = []
+
+    # refine ICs & Fcs based on stride duration and perspective
+    for i in range(len(ICs) - 1):
+        current_IC = ICs[i]
+        next_IC = ICs[i + 1]
+
+        # temporal difference between current & next IC event
+        stride_duration = (next_IC - current_IC) / fs
+
+        # check if gait events belong to same straight segment
+        facing_same_way = perspective[current_IC] == perspective[next_IC]
+        stride_duration_ok = properties["stride_min"] <= stride_duration <= properties["stride_max"]
+
+        if not stride_duration_ok and facing_same_way:
+            bad_GE_indices.append(i + 1)
+
+        if stride_duration_ok and facing_same_way:
+            # take the spatial difference of [KEYPOINT] between current & next IC event
+            #
+            stride_length_heel = np.linalg.norm(heel[:, next_IC] - heel[:, current_IC])
+            # stride_length_ankle = np.linalg.norm(ankle[:, next_IC] - ankle[:, current_IC])
+            # stride_length_toe = np.linalg.norm(big_toe[:, next_IC] - big_toe[:, current_IC])
+
+            # stride_lengths.append(np.array([stride_length_heel, stride_length_ankle, stride_length_toe]))
+            stride_lengths.append(stride_length_heel)
+            stride_durations.append(stride_duration)
+            direction.append(perspective[current_IC])
+
+    # remove false positive gait events
+    ICs = np.delete(ICs, bad_GE_indices)
+    FCs = np.delete(FCs, bad_GE_indices)
+
+    stride_lengths = np.array(stride_lengths)
+    stride_durations = np.array(stride_durations)
+
+    mean_velocity = np.nanmean(stride_lengths / stride_durations)
+    if create_debug_figure:
+
+        def create_debug_fig_gait_events(filename: str):
+            # create array to visualize gait events after filtering out bad ones
+            gait_event_vis = np.zeros_like(ground_contact_diff_straight)
+            gait_event_vis[ICs] = 1
+            gait_event_vis[FCs] = -1
+            tS = np.linspace(0, len(ankle_vel) / 60, len(ankle_vel))
+
+            plt.close("all")
+            fig, axs = plt.subplots(5, 1, figsize=(14, 9))
+
+            axs[0].plot(tS, ankle_vel, label="velocity")
+            axs[0].plot(tS, ground_contact * ankle_thr, label="ground contact at thr")
+
+            axs[1].plot(tS, big_toe_vel, label="velocity")
+            axs[1].plot(tS, ground_contact * big_toe_thr, label="ground contact at thr")
+
+            axs[2].plot(tS, heel_vel, label="velocity")
+            axs[2].plot(tS, ground_contact * heel_thr, label="ground contact at thr")
+
+            axs[3].plot(tS, ground_contact_diff[1:], alpha=0.4, label="ground contact diff")
+            axs[3].plot(tS[1:], turn_mask[2:], "r--", label="turn mask")
+            axs[3].plot(tS, gait_event_vis[1:], "b", alpha=1, label="gc diff straight")
+            axs[3].plot(tS, ground_contact_diff_straight[1:], "r", alpha=0.4, label="removed GEs")
+
+            axs[4].plot(tS, perspective[1:], label="perspective")
+
+            axs[0].set_title("ankle velocity")
+            axs[1].set_title("toe velocity")
+            axs[2].set_title("heel velocity")
+            axs[3].set_title("ground contact diff (gait events)")
+            axs[0].set_yticks([0, 3, ankle_thr])
+            axs[1].set_yticks([0, 3, big_toe_thr])
+            axs[2].set_yticks([0, 3, heel_thr])
+            axs[3].set_yticks(
+                [
+                    -1,
+                    1,
+                ],
+                ["FC", "IC"],
+            )
+            axs[3].set_yticks(
+                [
+                    -1,
+                    1,
+                ],
+                ["FC", "IC"],
+            )
+            axs[4].set_yticks([0, 1], ["back", "front"])
+
+            for ax in axs:
+                ax.legend(loc="upper left")
+                ax.grid()
+
+            plt.tight_layout()
+            plt.savefig(filename)
+
+        basename, extension = os.path.splitext(os.path.basename(file_path))
+        save_folder = "debug_figs"
+        create_debug_fig_gait_events(filename=os.path.join(save_folder, basename))
+    return (ICs, FCs, mean_velocity)
+
+
 def get_serial_number(filename: str) -> str:
     """
     get the camera serial number from filename
@@ -148,13 +335,13 @@ def get_turns_and_perspective(
         x=shoulder_diff, peaks=peaks, rel_height=0.8
     )
 
-    # create mask to indicate straight walking segments (straight=0, turn=1)
+    # create mask to indicate straight walking segments (straight=False, turn=True)
     turn_mask = np.zeros_like(shoulder_R)
     for left_base_idx, right_base_idx in zip((left_ips).astype(int), right_ips.astype(int)):
         # turn_segment_length = right_base_idx - left_base_idx
         turn_mask[left_base_idx:right_base_idx] = 1
 
-    # create mask to indicate front vs back perspectives (front=1, back=0)
+    # create mask to indicate front vs back perspectives (front=True, back=False)
     perspective = np.where(shoulder_L > shoulder_R, np.True_, np.False_)
     turn_mask = turn_mask.astype(np.bool)
     return (turn_mask, perspective)
