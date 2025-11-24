@@ -44,6 +44,75 @@ class Pattern:
 
 
 def get_gait_events(
+    data: np.ndarray, kpt_labels: list, gait_analysis_properties: dict, file_path: str
+) -> dict:
+    """
+    Copmute all gait-events (IC,FC) for both sides (left, right) of a given recording.
+    """
+    fps = gait_analysis_properties["fps"]
+    # get turn mask (turn / straight segments) and perspectives (front/back)
+    turn_mask, perspective = get_turns_and_perspective(data, kpt_labels, fps, 2)
+
+    events = {"left": {}, "right": {}}
+
+    # get gait-events for both sides. Use 1 m/s as the initial velocity estimate
+    for side in ["left", "right"]:
+        _, _, velocity = get_gait_events_one_side(
+            data,
+            kpt_labels,
+            side,
+            gait_analysis_properties,
+            1,
+            turn_mask,
+            perspective,
+            False,
+            file_path,
+        )
+        ICs, FCs, _ = get_gait_events_one_side(
+            data,
+            kpt_labels,
+            side,
+            gait_analysis_properties,
+            velocity,
+            turn_mask,
+            perspective,
+            True,
+            file_path,
+        )
+        events[side]["ICs"] = ICs
+        events[side]["FCs"] = FCs
+
+    # combine perspective and turning mask to get segments for final readout
+    segments = []
+    for persp, turn in zip(perspective, turn_mask):
+        match persp, turn:
+            # front, straight
+            case np.True_, np.False_:
+                segment_name = "front_straight"
+            # back, straight
+            case np.False_, np.False_:
+                segment_name = "back_straight"
+            # all turns
+            case _, _:
+                segment_name = "turn"
+
+        segments.append(segment_name)
+
+    IC_events = [
+        {"frame": frame, "side": side, "perspective": segments[frame]}
+        for side in ["left", "right"]
+        for frame in events[side]["ICs"]
+    ]
+    FC_events = [
+        {"frame": frame, "side": side, "perspective": segments[frame]}
+        for side in ["left", "right"]
+        for frame in events[side]["FCs"]
+    ]
+    gait_events = {"IC": IC_events, "FC": FC_events}
+    return gait_events
+
+
+def get_gait_events_one_side(
     data: np.ndarray,
     kpt_labels: list,
     side: Literal["left", "right"],
@@ -168,65 +237,67 @@ def get_gait_events(
     mean_velocity = np.nanmean(stride_lengths / stride_durations)
     if create_debug_figure:
 
-        def create_debug_fig_gait_events(filename: str):
-            # create array to visualize gait events after filtering out bad ones
-            gait_event_vis = np.zeros_like(ground_contact_diff_straight)
-            gait_event_vis[ICs] = 1
-            gait_event_vis[FCs] = -1
-            tS = np.linspace(0, len(ankle_vel) / 60, len(ankle_vel))
-
-            plt.close("all")
-            fig, axs = plt.subplots(5, 1, figsize=(14, 9))
-
-            axs[0].plot(tS, ankle_vel, label="velocity")
-            axs[0].plot(tS, ground_contact * ankle_thr, label="ground contact at thr")
-
-            axs[1].plot(tS, big_toe_vel, label="velocity")
-            axs[1].plot(tS, ground_contact * big_toe_thr, label="ground contact at thr")
-
-            axs[2].plot(tS, heel_vel, label="velocity")
-            axs[2].plot(tS, ground_contact * heel_thr, label="ground contact at thr")
-
-            axs[3].plot(tS, ground_contact_diff[1:], alpha=0.4, label="ground contact diff")
-            axs[3].plot(tS[1:], turn_mask[2:], "r--", label="turn mask")
-            axs[3].plot(tS, gait_event_vis[1:], "b", alpha=1, label="gc diff straight")
-            axs[3].plot(tS, ground_contact_diff_straight[1:], "r", alpha=0.4, label="removed GEs")
-
-            axs[4].plot(tS, perspective[1:], label="perspective")
-
-            axs[0].set_title("ankle velocity")
-            axs[1].set_title("toe velocity")
-            axs[2].set_title("heel velocity")
-            axs[3].set_title("ground contact diff (gait events)")
-            axs[0].set_yticks([0, 3, ankle_thr])
-            axs[1].set_yticks([0, 3, big_toe_thr])
-            axs[2].set_yticks([0, 3, heel_thr])
-            axs[3].set_yticks(
-                [
-                    -1,
-                    1,
-                ],
-                ["FC", "IC"],
-            )
-            axs[3].set_yticks(
-                [
-                    -1,
-                    1,
-                ],
-                ["FC", "IC"],
-            )
-            axs[4].set_yticks([0, 1], ["back", "front"])
-
-            for ax in axs:
-                ax.legend(loc="upper left")
-                ax.grid()
-
-            plt.tight_layout()
-            plt.savefig(filename)
-
         basename, extension = os.path.splitext(os.path.basename(file_path))
         save_folder = "debug_figs"
-        create_debug_fig_gait_events(filename=os.path.join(save_folder, basename))
+        filename = os.path.join(save_folder, f"{basename}_gait_events_{side}")
+
+        # create array to visualize gait events after filtering out bad ones
+        gait_event_vis = np.zeros_like(ground_contact_diff_straight)
+        gait_event_vis[ICs] = 1
+        gait_event_vis[FCs] = -1
+        tS = np.linspace(0, len(ankle_vel) / 60, len(ankle_vel))
+
+        plt.close("all")
+        fig, axs = plt.subplots(5, 1, figsize=(14, 9))
+
+        axs[0].plot(tS, ankle_vel, label="velocity")
+        axs[0].plot(tS, ground_contact * ankle_thr, label="ground contact at thr")
+
+        axs[1].plot(tS, big_toe_vel, label="velocity")
+        axs[1].plot(tS, ground_contact * big_toe_thr, label="ground contact at thr")
+
+        axs[2].plot(tS, heel_vel, label="velocity")
+        axs[2].plot(tS, ground_contact * heel_thr, label="ground contact at thr")
+
+        axs[3].plot(tS, ground_contact_diff[1:], alpha=0.4, label="ground contact diff")
+        axs[3].plot(tS[1:], turn_mask[2:], "r--", label="turn mask")
+        axs[3].plot(tS, gait_event_vis[1:], "b", alpha=1, label="gc diff straight")
+        axs[3].plot(tS, ground_contact_diff_straight[1:], "r", alpha=0.4, label="removed GEs")
+
+        axs[4].plot(tS, perspective[1:], label="perspective")
+
+        axs[0].set_title("ankle velocity")
+        axs[1].set_title("toe velocity")
+        axs[2].set_title("heel velocity")
+        axs[3].set_title("ground contact diff (gait events)")
+        axs[0].set_yticks([0, 3, ankle_thr])
+        axs[1].set_yticks([0, 3, big_toe_thr])
+        axs[2].set_yticks([0, 3, heel_thr])
+        axs[3].set_yticks(
+            [
+                -1,
+                1,
+            ],
+            ["FC", "IC"],
+        )
+        axs[3].set_yticks(
+            [
+                -1,
+                1,
+            ],
+            ["FC", "IC"],
+        )
+        axs[4].set_yticks([0, 1], ["back", "front"])
+
+        for ax in axs:
+            ax.legend(loc="upper left")
+            ax.grid()
+
+        # plt.tight_layout()
+        plt.savefig(filename)
+
+        plt.close("all")
+
     return (ICs, FCs, mean_velocity)
 
 
@@ -296,7 +367,10 @@ def get_points(
 
 
 def get_turns_and_perspective(
-    data: np.ndarray, kpt_labels: list, sampling_fr: float, min_walk_duration: float = 2
+    data: np.ndarray,
+    kpt_labels: list,
+    sampling_fr: float,
+    min_walk_duration: float = 2,
 ) -> tuple:
     """
     Identifies turning segments (straight/turning) and perspective (front / back) based on shoulder coordinates using peak detection method.
@@ -332,12 +406,14 @@ def get_turns_and_perspective(
 
     peaks, peak_properties = find_peaks(shoulder_diff, height=0.3, distance=min_peak_distance)
     widths, width_heights, left_ips, right_ips = peak_widths(
-        x=shoulder_diff, peaks=peaks, rel_height=0.8
+        x=shoulder_diff, peaks=peaks, rel_height=0.99
     )
 
     # create mask to indicate straight walking segments (straight=False, turn=True)
     turn_mask = np.zeros_like(shoulder_R)
-    for left_base_idx, right_base_idx in zip((left_ips).astype(int), right_ips.astype(int)):
+    for left_base_idx, right_base_idx in zip(
+        (left_ips).astype(int), np.ceil(right_ips).astype(int)
+    ):
         # turn_segment_length = right_base_idx - left_base_idx
         turn_mask[left_base_idx:right_base_idx] = 1
 
@@ -345,60 +421,6 @@ def get_turns_and_perspective(
     perspective = np.where(shoulder_L > shoulder_R, np.True_, np.False_)
     turn_mask = turn_mask.astype(np.bool)
     return (turn_mask, perspective)
-
-
-def walk_direction_peaks(data: np.ndarray, kpt_labels: list, sampling_fr: float) -> np.ndarray:
-    """
-    Determines walking state (straight/turning) based on shoulder coordinates using peak detection method.
-
-    Args:
-        data:           Input data with shape (n_keypoints, n_dims, n_frames).
-        kpt_labels:     List of keypoint labels corresponding to data (left_ankle, nose, etc).
-        fps:            sampling frequency
-
-    Returns:
-        valid_segments: boolean array indicating straight walking segments (True) and turning segments (False).
-
-    """
-
-    # get the y coord of shoulders (for qualisys x-y plane is horizontal, y coord was forwards/backwards movement)
-    shoulder_R = data[kpt_labels.index("right_shoulder"), 1, :]
-    shoulder_L = data[kpt_labels.index("left_shoulder"), 1, :]
-
-    shoulder_diff = np.abs(np.diff(shoulder_R - shoulder_L))
-    shoulder_diff = shoulder_diff / np.nanmax(shoulder_diff)
-
-    # Interpolate NaNs in shoulder_diff
-    if np.any(np.isnan(shoulder_diff)):
-        nans = np.isnan(shoulder_diff)
-        not_nans = ~nans
-        shoulder_diff[nans] = np.interp(
-            np.flatnonzero(nans), np.flatnonzero(not_nans), shoulder_diff[not_nans]
-        )
-
-    # min distance from peak to peak (2 seconds of straight movement) in samples
-    min_peak_distance = 2 * sampling_fr
-
-    peaks, peak_properties = find_peaks(shoulder_diff, height=0.3, distance=min_peak_distance)
-    widths, width_heights, left_ips, right_ips = peak_widths(
-        x=shoulder_diff, peaks=peaks, rel_height=0.95
-    )
-
-    # mark turning segments as invalid for gait analysis
-    # valid_segments = np.ones_like(data[0, 0, :], dtype=bool)
-    # for left_base, right_base in zip(left_ips, right_ips):
-    #     valid_segments[int(np.floor(left_base)) : int(np.ceil(right_base))] = False
-
-    # valid_segments = np.full(shape=data[0, 0, :].shape, fill_value="straight")
-    # for left_base, right_base in zip(left_ips, right_ips):
-    #     valid_segments[int(np.floor(left_base)) : int(np.ceil(right_base))] = str("turn")
-
-    valid_segments = ["straight"] * data.shape[2]
-    for left_base, right_base in zip(left_ips, right_ips):
-        turn = ["turn"] * (int(np.floor(right_base)) - int(np.ceil(left_base)) + 2)
-        valid_segments[int(np.floor(left_base)) : int(np.ceil(right_base))] = turn
-
-    return valid_segments
 
 
 def interpolate_gaps(data: np.ndarray, fps: int, max_gap: float) -> np.ndarray:
@@ -506,177 +528,6 @@ def filter_data(
     return filtered_data
 
 
-def step_detection(data: np.ndarray, kpt_labels: list, properties: dict) -> dict:
-    """
-    asdfasdfasdf
-    Args:
-        data: filtered pose data (keypoints x dims x frames)
-        kpt_labels: list of keypoint labels corresponding to data (left_ankle, nose, etc)
-        properties: dictionary of static parameters from properties.json
-
-    Returns:
-        events: dictionary matching frame indices to gait events (IC, FC)...
-                for each side (left, right) along with perspective (frontal, saggital)
-    """
-
-    # perspective = walk_direction(data, kpt_labels, properties["stride_min"], properties["fps"])
-    perspective = walk_direction_peaks(data, kpt_labels, properties["fps"])
-
-    events = {"left": {}, "right": {}}
-
-    for side in ["left", "right"]:
-        _, _, velocity = bruening_ridge_detection(data, 1, side, kpt_labels, properties)
-        ICs, FCs, _ = bruening_ridge_detection(data, velocity, side, kpt_labels, properties)
-        events[side]["ICs"] = ICs
-        events[side]["FCs"] = FCs
-
-    IC_events = [
-        {"frame": frame, "side": side, "perspective": perspective[frame]}
-        for side in ["left", "right"]
-        for frame in events[side]["ICs"]
-    ]
-    FC_events = [
-        {"frame": frame, "side": side, "perspective": perspective[frame]}
-        for side in ["left", "right"]
-        for frame in events[side]["FCs"]
-    ]
-
-    return ({"IC": IC_events, "FC": FC_events}, perspective)
-
-
-def walk_direction(
-    data: np.ndarray, keypoint_mapping: list, min_length: float, fps: float
-) -> np.ndarray:
-    """
-    Determines walking direction (frontal/saggital) based on shoulder coordinates.
-    Args:
-        data: interpolated and filtered pose data (keypoints x dims x frames)
-        keypoint_mapping: list of keypoint labels corresponding to data (left_ankle, nose, etc)
-        min_length: minimum segment length in seconds
-        fps: sampling frequency of recorded data
-
-    Returns:
-        perspective: array of 'frontal', 'sagittal', or None for each frame
-    """
-
-    # get shoulder coordinates (y-axis)
-    # note: in qualisys data, y-axis is left-right, x is front-back, z is up-down
-    shoulder_R = data[keypoint_mapping.index("right_shoulder"), 1, :]
-    shoulder_L = data[keypoint_mapping.index("left_shoulder"), 1, :]
-
-    orientation = shoulder_R - shoulder_L
-    perspective = np.where(
-        orientation > 0, "frontal", np.where(orientation < 0, "sagittal", None)
-    ).astype(object)
-
-    # max gap size in frames
-    max_gap_size = int(min_length * fps)
-    valid_indices = np.where(perspective != None)[0]
-
-    # TODO: figure out what this does, add comments
-    for start, end in zip(valid_indices[:-1], valid_indices[1:]):
-        if end - start <= max_gap_size:
-            perspective[start + 1 : end] = perspective[start]
-
-    changes = np.r_[True, perspective[:-1] != perspective[1:], True]
-    segment_starts, segment_ends = np.where(changes[:-1])[0], np.where(changes[1:])[0] - 1
-
-    for start, end in zip(segment_starts, segment_ends):
-        if (end - start + 1) / fps < min_length:
-            perspective[start : end + 1] = None
-
-    return perspective
-
-
-def bruening_ridge_detection(
-    data: np.ndarray, velocity: float, side: str, kpt_labels: list, properties: dict
-) -> tuple:
-    """
-    Identifies Gait Events (GE) using the velocity of markers on the foot (heel, toe, ankle).
-
-    Args:
-        data: interpolated and filtered pose data from qualisys (keypoints x dims x frames)
-        velocity: initial walking velocity estimate (m/s)
-        side: 'left' or 'right'
-        kpt_labels: list of keypoint labels corresponding to data (left_ankle, nose, etc)
-        properties: dictionary of static parameters from properties.json
-
-    Returns:
-
-        ICs: list of Initial Contact (IC) frame indices
-
-        FCs: list of Final Contact (FC) frame indices
-
-        velocity: computed walking velocity (m/s)
-
-    """
-    fs = properties["fps"]
-    heel_thr = properties["heel_thr"] * velocity
-    # use ankle marker in case the other 2 are not visible
-    ankle_thr = properties["heel_thr"] * velocity
-    big_toe_thr = properties["toe_thr"] * velocity
-
-    # Extract trajectories
-    heel = data[kpt_labels.index(f"{side}_heel"), :, :]
-    big_toe = data[kpt_labels.index(f"{side}_big_toe"), :, :]
-    ankle = data[kpt_labels.index(f"{side}_ankle"), :, :]
-
-    # Compute 3D velocities
-    heel_vel = np.linalg.norm(np.diff(heel, axis=1), axis=0) * fs
-    ankle_vel = np.linalg.norm(np.diff(ankle, axis=1), axis=0) * fs
-    big_toe_vel = np.linalg.norm(np.diff(big_toe, axis=1), axis=0) * fs
-
-    # Ground contact detection based on thresholds
-    ground_contact = (
-        (heel_vel < heel_thr) | (ankle_vel < ankle_thr) | (big_toe_vel < big_toe_thr)
-    ).astype(int)
-
-    # Remove short ground contact periods
-    min_gc_duration = int(properties["stance_min"] * fs)
-    min_no_gc_duration = int(properties["swing_min"] * fs)
-
-    contact_diff = np.diff(np.r_[0, ground_contact, 0])
-    starts = np.where(contact_diff == 1)[0]
-    ends = np.where(contact_diff == -1)[0]
-
-    for start, end in zip(starts, ends):
-        if end - start < min_gc_duration:
-            ground_contact[start:end] = 0
-
-    # Remove short no-contact periods
-    contact_diff = np.diff(np.r_[0, ground_contact, 0])
-    starts = np.where(contact_diff == 1)[0]
-    ends = np.where(contact_diff == -1)[0]
-
-    for start, end in zip(starts, ends):
-        if end - start < min_no_gc_duration:
-            ground_contact[start:end] = 1
-
-    # Identify initial contacts (ICs) and final contacts (FCs)
-    ground_contact_diff = np.diff(ground_contact)
-    ICs = np.where(ground_contact_diff == 1)[0] + 1
-    FCs = np.where(ground_contact_diff == -1)[0] + 1
-
-    # Compute walking velocity from stride lengths and durations
-    stride_lengths = []
-    stride_durations = []
-
-    for i in range(1, len(ICs)):
-        stride_duration = (ICs[i] - ICs[i - 1]) / fs
-        if properties["stride_min"] <= stride_duration <= properties["stride_max"]:
-            stride_length = np.linalg.norm(heel[:, ICs[i]] - heel[:, ICs[i - 1]])
-            stride_lengths.append(stride_length)
-            stride_durations.append(stride_duration)
-
-    velocity = (
-        np.nanmean(np.array(stride_lengths) / np.array(stride_durations))
-        if stride_durations
-        else np.nan
-    )
-
-    return ICs, FCs, velocity
-
-
 def get_frame_index(gait_events: list, side: str, lower_bound: int, upper_bound: int) -> list:
     """
     Return frame indices from gait_events with the given side from lower_bound to upper_bound frame index.
@@ -719,14 +570,14 @@ def compute_asymmetry(left_values, right_values):
     return 100 * (1 - smaller / larger) if larger > 0 else np.nan
 
 
-def gait_analysis(data: np.ndarray, events: dict, keypoint_mapping: list, properties: dict) -> dict:
+def gait_analysis(data: np.ndarray, events: dict, kpt_labels: list, properties: dict) -> dict:
 
     # static properties for calculations
     fs = properties["fps"]
     stride_min = properties["stride_min"]
     stride_max = properties["stride_max"]
 
-    perspectives = ["all", "straight", "turn"]
+    perspectives = ["all", "front_straight", "back_straight"]
     # metrics of interest (for each side)
     moi = {
         metric: []
@@ -748,7 +599,7 @@ def gait_analysis(data: np.ndarray, events: dict, keypoint_mapping: list, proper
         for perspective in perspectives
     }
 
-    # Initial- and Final-contac gait events
+    # Initial- and Final-contact gait events
     ICs = events["IC"]
     FCs = events["FC"]
 
@@ -803,11 +654,9 @@ def gait_analysis(data: np.ndarray, events: dict, keypoint_mapping: list, proper
                     continue
 
                 # heel point
-                HP0 = np.nanmedian(data[keypoint_mapping.index(f"{ipsi}_heel"), :, IC0:FC0], axis=1)
-                HP2 = np.nanmedian(data[keypoint_mapping.index(f"{ipsi}_heel"), :, IC2:FC2], axis=1)
-                HP1 = np.nanmedian(
-                    data[keypoint_mapping.index(f"{contra}_heel"), :, IC1:FC1], axis=1
-                )
+                HP0 = np.nanmedian(data[kpt_labels.index(f"{ipsi}_heel"), :, IC0:FC0], axis=1)
+                HP2 = np.nanmedian(data[kpt_labels.index(f"{ipsi}_heel"), :, IC2:FC2], axis=1)
+                HP1 = np.nanmedian(data[kpt_labels.index(f"{contra}_heel"), :, IC1:FC1], axis=1)
 
                 # stride lenght on xy plane
                 slen = np.linalg.norm(HP2[:2] - HP0[:2])
@@ -846,7 +695,7 @@ def display_results(parameters):
         "dsupp",
         "bos",
     ]
-    statistic_order = ["Mean", "CV", "Asymmetry"]
+    statistic_order = ["Mean [m]", "CV [%]", "Asymmetry [%]"]
 
     rows = []
     for segment_type, metrics in parameters.items():
@@ -855,25 +704,25 @@ def display_results(parameters):
                 [
                     {
                         "Parameter": param,
-                        "Statistic": "Mean",
+                        "Statistic": statistic_order[0],
                         "Perspective": segment_type,
                         "Value": values["mean"],
                     },
                     {
                         "Parameter": param,
-                        "Statistic": "CV",
+                        "Statistic": statistic_order[1],
                         "Perspective": segment_type,
                         "Value": values["CV"],
                     },
                     {
                         "Parameter": param,
-                        "Statistic": "Asymmetry",
+                        "Statistic": statistic_order[2],
                         "Perspective": segment_type,
                         "Value": values["asymmetry"],
                     },
                 ]
             )
-    pd.options.display.float_format = "{:,.1f}".format
+    pd.options.display.float_format = "{:,.2f}".format
     df = pd.DataFrame(rows)
     df["Parameter"] = pd.Categorical(df["Parameter"], categories=parameter_order, ordered=True)
     df["Statistic"] = pd.Categorical(df["Statistic"], categories=statistic_order, ordered=True)
@@ -890,7 +739,7 @@ def display_results(parameters):
     table.columns.name = None
 
     print(table)
-    return table
+    return (df, table)
 
 
 def filter_2d_keypoint(
@@ -1022,130 +871,6 @@ def progress_bar(percent_done, bar_length=50):
     sys.stdout.flush()
 
 
-class BodyWithFeet:
-    """
-    Halpe26 class for human pose estimation using the Halpe26 keypoint format.
-    This class supports different modes of operation and can output in OpenPose format.
-    """
-
-    MODE = {
-        "performance": {
-            "det": "https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/yolox_x_8xb8-300e_humanart-a39d44ed.zip",
-            "det_input_size": (640, 640),
-            "pose": "https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/rtmpose-x_simcc-body7_pt-body7-halpe26_700e-384x288-7fb6e239_20230606.zip",
-            "pose_input_size": (288, 384),
-        },
-        "lightweight": {
-            "det": "https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/yolox_tiny_8xb8-300e_humanart-6f3252f9.zip",
-            "det_input_size": (416, 416),
-            "pose": "https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/rtmpose-s_simcc-body7_pt-body7-halpe26_700e-256x192-7f134165_20230605.zip",
-            "pose_input_size": (192, 256),
-        },
-        "balanced": {
-            "det": "https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/yolox_m_8xb8-300e_humanart-c2c7a14a.zip",
-            "det_input_size": (640, 640),
-            "pose": "https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/rtmpose-m_simcc-body7_pt-body7-halpe26_700e-256x192-4d3e73dd_20230605.zip",
-            "pose_input_size": (192, 256),
-        },
-    }
-
-    def __init__(
-        self,
-        det: str = None,
-        det_input_size: tuple = (640, 640),
-        pose: str = None,
-        pose_input_size: tuple = (192, 256),
-        mode: str = "balanced",
-        to_openpose: bool = False,
-        backend: str = "onnxruntime",
-        device: str = "cpu",
-    ):
-        """
-        Initialize the Halpe26 pose estimation model.
-
-        Args:
-            det (str, optional): Path to detection model. If None, uses default based on mode.
-            det_input_size (tuple, optional): Input size for detection model. Default is (640, 640).
-            pose (str, optional): Path to pose estimation model. If None, uses default based on mode.
-            pose_input_size (tuple, optional): Input size for pose model. Default is (192, 256).
-            mode (str, optional): Operation mode ('performance', 'lightweight', or 'balanced'). Default is 'balanced'.
-            to_openpose (bool, optional): Whether to convert output to OpenPose format. Default is False.
-            backend (str, optional): Backend for inference ('onnxruntime' or 'opencv'). Default is 'onnxruntime'.
-            device (str, optional): Device for inference ('cpu' or 'cuda'). Default is 'cpu'.
-        """
-        from rtmlib import YOLOX, RTMPose
-
-        if pose is None:
-            pose = self.MODE[mode]["pose"]
-            pose_input_size = self.MODE[mode]["pose_input_size"]
-
-        if det is None:
-            det = self.MODE[mode]["det"]
-            det_input_size = self.MODE[mode]["det_input_size"]
-
-        self.det_model = YOLOX(det, model_input_size=det_input_size, backend=backend, device=device)
-        self.pose_model = RTMPose(
-            pose,
-            model_input_size=pose_input_size,
-            to_openpose=to_openpose,
-            backend=backend,
-            device=device,
-        )
-
-    def __call__(self, image: np.ndarray):
-        """
-        Perform pose estimation on the input image.
-
-        Args:
-            image (np.ndarray): Input image for pose estimation.
-
-        Returns:
-            tuple: A tuple containing:
-                - keypoints (np.ndarray): Estimated keypoint coordinates.
-                - scores (np.ndarray): Confidence scores for each keypoint.
-        """
-        bboxes = self.det_model(image)
-        keypoints, scores = self.pose_model(image, bboxes=bboxes)
-        return keypoints, scores
-
-
-def compute_iou(bboxA: list, bboxB: list) -> float:
-    """
-    Compute the Intersection over Union (IoU) between two boxes.
-    (How much two bboxes overlap relative to their combined area)
-
-    Args:
-        bboxA (list): The first bbox info (left, top, right, bottom, score).
-        bboxB (list): The second bbox info (left, top, right, bottom, score).
-
-    Returns:
-        float: The IoU value.
-    """
-
-    # find the corners of the intersection area
-    x1 = max(bboxA[0], bboxB[0])
-    y1 = max(bboxA[1], bboxB[1])
-    x2 = min(bboxA[2], bboxB[2])
-    y2 = min(bboxA[3], bboxB[3])
-
-    # calculate area of intersection
-    inter_area = max(0, x2 - x1) * max(0, y2 - y1)
-
-    # area of bbox A & B
-    bboxA_area = (bboxA[2] - bboxA[0]) * (bboxA[3] - bboxA[1])
-    bboxB_area = (bboxB[2] - bboxB[0]) * (bboxB[3] - bboxB[1])
-
-    # area of union
-    union_area = float(bboxA_area + bboxB_area - inter_area)
-    if union_area == 0:
-        union_area = 1e-5
-        warnings.warn("union_area=0 is unexpected")
-
-    iou = inter_area / union_area
-
-    return iou
-
-
 def pose_to_bbox(keypoints: np.ndarray, expansion: float = 1.25) -> np.ndarray:
     """Get bounding box from keypoints.
 
@@ -1168,8 +893,6 @@ def pose_to_bbox(keypoints: np.ndarray, expansion: float = 1.25) -> np.ndarray:
     )
     return bbox
 
-
-class PoseTracker:
     """
     Pose tracker for pose estimation.
 
@@ -1374,8 +1097,6 @@ class Custom:
 
         return keypoints, scores
 
-
-class Body:
     MODE = {
         "performance": {
             "det": "https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/yolox_x_8xb8-300e_humanart-a39d44ed.zip",  # noqa
