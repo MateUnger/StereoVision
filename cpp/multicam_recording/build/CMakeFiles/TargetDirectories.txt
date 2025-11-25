@@ -1,3 +1,0 @@
-/home/dsgz-admin/stereolabs/StereoVision/cpp/multicam_recording/build/CMakeFiles/rebuild_cache.dir
-/home/dsgz-admin/stereolabs/StereoVision/cpp/multicam_recording/build/CMakeFiles/edit_cache.dir
-/home/dsgz-admin/stereolabs/StereoVision/cpp/multicam_recording/build/CMakeFiles/ZED_SVO_Recording_Multi.dir
