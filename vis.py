@@ -3,12 +3,16 @@ import numpy as np
 import pandas as pd
 import json
 import glob
-from util import *
+from Util.util import *
 
 # from tkinter import Tk
-# from tkinter.filedialog import askopenfilename
+from tkinter.filedialog import askopenfilename
 
 import matplotlib.pyplot as plt
+
+import ipywidgets as widgets
+from mpl_toolkits.mplot3d import Axes3D
+from IPython.display import display
 
 
 # TODO: color foot keyppoints based on gc period (c1 when on ground, c2 when in air)
@@ -16,48 +20,46 @@ import matplotlib.pyplot as plt
 
 
 # load static parameters from file
-with open("./Util/properties.json", "r") as json_file:
-    properties = json.load(json_file)
-    print(properties)
+with open("./Util/gait_analysis_properties.json", "r") as json_file:
+    gait_analysis_properties = json.load(json_file)
+    stereo_properties = gait_analysis_properties["stereo"]
+    qualysis_properties = gait_analysis_properties["qualisys"]
 
 
 # load file, display basic info
-file_path = ".\\stereo_videos\\validation_test\\43916681.npz"
-# file_path = ".\\stereo_videos\\validation_test\\qualisys_mate_walking.npz"
+file_path = askopenfilename()
 if file_path:
-    data = np.load(file_path, allow_pickle=True)
-    print(f"file:  {os.path.basename(file_path)}")
-    print(f"keys:  {list(data.keys())}")
+    loaded_data = np.load(file_path, allow_pickle=True)
+    print(f"file:  {get_basename(file_path)}")
+    print(f"keys:  {list(loaded_data.keys())}")
+
+try:
+    # stereo
+    data = loaded_data["keypoints_3d_filtered"]
+    properties = stereo_properties
+except:
+    # qualisys
+    data = loaded_data["pose_data"]
+    properties = qualysis_properties
+    data = filter_data(
+        data,
+        properties["fps"],
+        "lowpass",
+        [properties["filter_cutoff"]],
+        properties["filter_order"],
+        properties["max_gap"],
+    )
 
 
-# vGait = data["pose_data"]
-# vGait = data["keypoints_3d"]
-vGait = data["keypoints_3d_filtered"]
-# print(f"data shape: {vGait.shape}")
+print(f"data shape: {data.shape}")
+kpt_labels = loaded_data["kpt_labels"].tolist()
 
+gait_events = get_gait_events(data, kpt_labels, properties)
 
-kpt_labels = data["kpt_labels"].tolist()
-
-# vGait = filter_data(
-#     vGait,
-#     properties["fps"],
-#     "lowpass",
-#     [properties["filter_cutoff"]],
-#     properties["filter_order"],
-#     properties["max_gap"],
-# )
-print(f"shape: {vGait.shape}")
-
-
-steps, valid_segments = step_detection(vGait, kpt_labels, properties)
-
-import ipywidgets as widgets
-from mpl_toolkits.mplot3d import Axes3D
-from IPython.display import display
-
-IC_frames = [step["frame"] for step in steps["IC"]]
-FC_frames = [step["frame"] for step in steps["FC"]]
-print(len(IC_frames))
+IC_frames = [event["frame"] for event in gait_events["IC"]]
+FC_frames = [event["frame"] for event in gait_events["FC"]]
+print(f"ICs: {len(IC_frames)}")
+print(f"FCs: {len(FC_frames)}")
 
 
 class FrameViewer:
@@ -69,7 +71,7 @@ class FrameViewer:
         self.kpt_labels = kpt_labels
         self.frame_idx = 0
 
-        self.fig = plt.figure(figsize=(8, 6))
+        self.fig = plt.figure(figsize=(11, 8))
         self.ax = self.fig.add_subplot(111, projection="3d")
         self.fig.canvas.mpl_connect("key_press_event", self.on_key)
         self.plot_frame(self.frame_idx)
@@ -91,8 +93,8 @@ class FrameViewer:
         self.ax.scatter(0, 0.45, 0)
         self.ax.scatter(0.75, 0.45, 0)
         # Build a lookup for IC and FC events by frame
-        ic_events = {step["frame"]: step for step in steps["IC"]}
-        fc_events = {step["frame"]: step for step in steps["FC"]}
+        ic_events = {event["frame"]: event for event in gait_events["IC"]}
+        fc_events = {event["frame"]: event for event in gait_events["FC"]}
 
         # IC event
         if idx in ic_events:
@@ -142,7 +144,6 @@ class FrameViewer:
         self.ax.set_xlim(-4, 4)
         self.ax.set_ylim(-0.75, 1.25)
         self.ax.set_zlim(0, 2)
-        # self.ax.set_aspect("equal")
         self.ax.set_box_aspect([2, 1, 1])
 
         self.ax.legend()
@@ -164,4 +165,4 @@ class FrameViewer:
 
 
 if __name__ == "__main__":
-    FrameViewer(vGait, IC_frames, FC_frames, kpt_labels)
+    FrameViewer(data, IC_frames, FC_frames, kpt_labels)

@@ -1,3 +1,9 @@
+# # exclude everything
+# somefolder/*
+
+# # exception to the rule
+# !somefolder/.gitkeep 
+
 # file types that wont be tracked by Git
 *.svo
 *.svo2
@@ -9,3 +15,7 @@
 
 # pycache folders
 **/__pycache__/
+
+results/*
+debug_figs/*
+

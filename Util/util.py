@@ -43,13 +43,42 @@ class Pattern:
         self.pattern_points *= square_size
 
 
+def get_basename(full_file_path: str) -> str:
+    """
+    Return the basename of input file path e.g.: ...folder1/folder2/image_name.png -> image_name
+
+    Args:
+        full_file_path: input file path string
+
+    Returns:
+        basename: basename of the input (without folders or extension)
+    """
+    basename_without_ext = os.path.splitext(full_file_path)[0]
+    basename = os.path.basename(basename_without_ext)
+    return basename
+
+
 def get_gait_events(
-    data: np.ndarray, kpt_labels: list, gait_analysis_properties: dict, file_path: str
+    data: np.ndarray, kpt_labels: list, gait_analysis_properties: dict, file_path: str = None
 ) -> dict:
     """
-    Copmute all gait-events (IC,FC) for both sides (left, right) of a given recording.
+    Compute all gait-events (IC,FC) for both sides (left, right) of a given recording.
+
+    Args:
+        data: interpolated and filtered keypoint data (keypoints x dims x frames)
+        kpt_labels: list of keypoint labels corresponding to data (left_ankle, nose, etc)
+        gait_analysis_properties: dictionary of static parameters from gait_analysis_properties.json
+        file_path: path to save debug figures
+
+    Returns:
+        gait_events: dict containing all IC and FC events (for both sides)
+
     """
     fps = gait_analysis_properties["fps"]
+    save_debug_fig = False
+    if file_path is not None:
+        save_debug_fig = True
+
     # get turn mask (turn / straight segments) and perspectives (front/back)
     turn_mask, perspective = get_turns_and_perspective(data, kpt_labels, fps, 2)
 
@@ -76,7 +105,7 @@ def get_gait_events(
             velocity,
             turn_mask,
             perspective,
-            True,
+            save_debug_fig,
             file_path,
         )
         events[side]["ICs"] = ICs
@@ -116,7 +145,7 @@ def get_gait_events_one_side(
     data: np.ndarray,
     kpt_labels: list,
     side: Literal["left", "right"],
-    properties: dict,
+    gait_analysis_properties: dict,
     velocity: float,
     turn_mask: np.ndarray,
     perspective: np.ndarray,
@@ -132,7 +161,7 @@ def get_gait_events_one_side(
         velocity: initial walking velocity estimate (m/s)
         side: 'left' or 'right'
         kpt_labels: list of keypoint labels corresponding to data (left_ankle, nose, etc)
-        properties: dictionary of static parameters from properties.json
+        gait_analysis_properties: dictionary of static parameters from gait_analysis_properties.json
 
     Returns:
         ICs: list of Initial Contact (IC) frame indices
@@ -140,11 +169,11 @@ def get_gait_events_one_side(
         velocity: computed walking velocity (m/s)
     """
 
-    fs = properties["fps"]
-    heel_thr = properties["heel_thr"] * velocity
+    fs = gait_analysis_properties["fps"]
+    heel_thr = gait_analysis_properties["heel_thr"] * velocity
     # use ankle marker too (in case the other 2 are not visible, also better for stereo - no obstuction issues)
-    ankle_thr = properties["heel_thr"] * velocity
-    big_toe_thr = properties["toe_thr"] * velocity
+    ankle_thr = gait_analysis_properties["heel_thr"] * velocity
+    big_toe_thr = gait_analysis_properties["toe_thr"] * velocity
 
     # Extract trajectories
     heel = data[kpt_labels.index(f"{side}_heel"), :, :]
@@ -162,8 +191,8 @@ def get_gait_events_one_side(
     ).astype(int)
 
     # Remove too short ground contact periods
-    min_gc_duration = int(properties["stance_min"] * fs)
-    min_no_gc_duration = int(properties["swing_min"] * fs)
+    min_gc_duration = int(gait_analysis_properties["stance_min"] * fs)
+    min_no_gc_duration = int(gait_analysis_properties["swing_min"] * fs)
 
     contact_diff = np.diff(
         np.pad(ground_contact, 1, "constant")
@@ -210,11 +239,16 @@ def get_gait_events_one_side(
 
         # check if gait events belong to same straight segment
         facing_same_way = perspective[current_IC] == perspective[next_IC]
-        stride_duration_ok = properties["stride_min"] <= stride_duration <= properties["stride_max"]
+        stride_duration_ok = (
+            gait_analysis_properties["stride_min"]
+            <= stride_duration
+            <= gait_analysis_properties["stride_max"]
+        )
 
         if not stride_duration_ok and facing_same_way:
             bad_GE_indices.append(i + 1)
 
+        # TODO: decide which kpt is best (heel or ankle or mix?)
         if stride_duration_ok and facing_same_way:
             # take the spatial difference of [KEYPOINT] between current & next IC event
             #
@@ -224,6 +258,7 @@ def get_gait_events_one_side(
 
             # stride_lengths.append(np.array([stride_length_heel, stride_length_ankle, stride_length_toe]))
             stride_lengths.append(stride_length_heel)
+            # stride_lengths.append(stride_length_ankle)
             stride_durations.append(stride_duration)
             direction.append(perspective[current_IC])
 
@@ -406,7 +441,7 @@ def get_turns_and_perspective(
 
     peaks, peak_properties = find_peaks(shoulder_diff, height=0.3, distance=min_peak_distance)
     widths, width_heights, left_ips, right_ips = peak_widths(
-        x=shoulder_diff, peaks=peaks, rel_height=0.99
+        x=shoulder_diff, peaks=peaks, rel_height=0.95
     )
 
     # create mask to indicate straight walking segments (straight=False, turn=True)
@@ -657,6 +692,11 @@ def gait_analysis(data: np.ndarray, events: dict, kpt_labels: list, properties: 
                 HP0 = np.nanmedian(data[kpt_labels.index(f"{ipsi}_heel"), :, IC0:FC0], axis=1)
                 HP2 = np.nanmedian(data[kpt_labels.index(f"{ipsi}_heel"), :, IC2:FC2], axis=1)
                 HP1 = np.nanmedian(data[kpt_labels.index(f"{contra}_heel"), :, IC1:FC1], axis=1)
+
+                # TODO: try it with ankle kpt too
+                # HP0 = np.nanmedian(data[kpt_labels.index(f"{ipsi}_ankle"), :, IC0:FC0], axis=1)
+                # HP2 = np.nanmedian(data[kpt_labels.index(f"{ipsi}_ankle"), :, IC2:FC2], axis=1)
+                # HP1 = np.nanmedian(data[kpt_labels.index(f"{contra}_ankle"), :, IC1:FC1], axis=1)
 
                 # stride lenght on xy plane
                 slen = np.linalg.norm(HP2[:2] - HP0[:2])
