@@ -405,7 +405,10 @@ def get_turns_and_perspective(
     data: np.ndarray,
     kpt_labels: list,
     sampling_fr: float,
+    min_peak_height: float = 0.3,
+    relative_height: float = 0.85,
     min_walk_duration: float = 2,
+    create_debug_fig: bool = False,
 ) -> tuple:
     """
     Identifies turning segments (straight/turning) and perspective (front / back) based on shoulder coordinates using peak detection method.
@@ -413,7 +416,9 @@ def get_turns_and_perspective(
     Args:
         data:               Input data with shape (n_keypoints, n_dims, n_frames).
         kpt_labels:         List of keypoint labels corresponding to data (left_ankle, nose, etc).
-        fps:                sampling frequency
+        sampling_fr:        sampling frequency
+        min_peak_height:    only peaks above this height will be considered
+        relative_height:    height at which the bases of a peak will be taken. It is MEASURED FROM APEX
         min_walk_duration:  min elapsed time (in seconds) between turns (1 turn = 180 deg)
 
     Returns:
@@ -425,6 +430,7 @@ def get_turns_and_perspective(
     shoulder_R = data[kpt_labels.index("right_shoulder"), 1, :]
     shoulder_L = data[kpt_labels.index("left_shoulder"), 1, :]
 
+    # normalize signal
     shoulder_diff = np.abs(np.diff(shoulder_R - shoulder_L))
     shoulder_diff = shoulder_diff / np.nanmax(shoulder_diff)
 
@@ -439,9 +445,11 @@ def get_turns_and_perspective(
     # min distance from peak to peak (2 seconds of straight movement) in samples
     min_peak_distance = min_walk_duration * sampling_fr
 
-    peaks, peak_properties = find_peaks(shoulder_diff, height=0.3, distance=min_peak_distance)
+    peaks, peak_properties = find_peaks(
+        shoulder_diff, height=min_peak_height, distance=min_peak_distance
+    )
     widths, width_heights, left_ips, right_ips = peak_widths(
-        x=shoulder_diff, peaks=peaks, rel_height=0.95
+        x=shoulder_diff, peaks=peaks, rel_height=relative_height
     )
 
     # create mask to indicate straight walking segments (straight=False, turn=True)
@@ -455,6 +463,28 @@ def get_turns_and_perspective(
     # create mask to indicate front vs back perspectives (front=True, back=False)
     perspective = np.where(shoulder_L > shoulder_R, np.True_, np.False_)
     turn_mask = turn_mask.astype(np.bool)
+
+    if create_debug_fig:
+        tS = np.linspace(0, len(shoulder_R) / sampling_fr, len(shoulder_R))
+
+        plt.close("all")
+        fig, axs = plt.subplots(2, 1, figsize=(14, 4))
+
+        axs[0].plot(tS[1:], shoulder_diff, label="shoulder diff")
+        axs[0].plot(tS, perspective, label="front, back")
+        axs[0].plot(left_ips / sampling_fr, width_heights, "o", label="turn start", markersize=4)
+        axs[0].plot(right_ips / sampling_fr, width_heights, "o", label="turn end", markersize=4)
+        axs[0].plot(tS, turn_mask, label="straight/turn")
+
+        axs[1].plot(tS, shoulder_L, label="left")
+        axs[1].plot(tS, shoulder_R, label="right")
+
+        for ax in axs:
+            ax.legend(loc="upper left")
+            ax.grid()
+
+        plt.tight_layout()
+
     return (turn_mask, perspective)
 
 

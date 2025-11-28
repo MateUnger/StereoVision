@@ -2,7 +2,7 @@
     "stereo": {
         "fps": 60,
         "max_gap": 0.25,
-        "filter_cutoff": 7,
+        "filter_cutoff": 2,
         "filter_order": 4,
         "heel_thr": 0.5,
         "toe_thr": 0.8,
