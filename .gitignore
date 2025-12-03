@@ -12,11 +12,11 @@
 *.npy
 *.npz
 *.ply
+*.png
 
 # pycache folders
 **/__pycache__/
 
 results/*
 debug_figs/*
-stereo_videos/*
 
