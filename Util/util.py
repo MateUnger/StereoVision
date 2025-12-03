@@ -4,10 +4,13 @@ import sys
 import numpy as np
 import warnings
 import numpy as np
+import json 
+import csv
 import importlib
 from scipy.signal import butter, filtfilt
 from scipy.interpolate import CubicSpline
 import matplotlib.pyplot as plt
+import logging
 
 from numpy.fft import fft, ifft
 from scipy import signal as sp_signal
@@ -41,6 +44,90 @@ class Pattern:
         self.pattern_points = np.zeros((np.prod(self.pattern_size), 3), np.float32)
         self.pattern_points[:, :2] = np.indices(self.pattern_size).T.reshape(-1, 2)
         self.pattern_points *= square_size
+
+def format_qualisys_export(input_filename:str, output_filename:str=None):
+    if not os.path.exists(input_filename):
+        print(f"file {input_filename} does not exits")
+    elif output_filename==None:
+        basename = get_basename(input_filename)
+        directory = os.path.dirname(input_filename)
+        output_filename = os.path.join(directory, basename,".npy")
+
+
+    # read first 10 rows to get number of markers, frames, marker names...
+    metadata = get_qualisys_metadata(input_filename)
+
+    # Read the TSV file, skipping the first 10 rows (only metadata)
+    df = pd.read_csv(input_filename, sep="\t", header=None, skiprows=11, dtype=None)
+
+    # Convert the DataFrame to a numpy array, transpose it (so it is (markers x dims) x frames)
+    data = df.to_numpy().T
+
+    # discrard the first two rows (frame number and relative timestamp)
+    data = data[1:, :]
+
+    # reshape the data to    markers x dims x frames
+    data = data.reshape(int(metadata["NO_OF_MARKERS"]), 4, int(metadata["NO_OF_FRAMES"]))
+
+    # iterate over all keypoints
+    for kpt_idx, keypoint in enumerate(data):
+        # get the type of measurement for all frames of a given keypoint
+        measurement_types = keypoint[3, :]
+        # iterate over all dims (x,y,z,type) of a keypoint
+        for dim_idx, dim in enumerate(keypoint):
+
+            # replace coordinates with nan when it is gap-filled by qualisys, convert coords to float
+            if dim_idx <= 2:
+                data[kpt_idx, dim_idx, :] = np.where(
+                    measurement_types == "Measured", dim, "Nan"
+                ).astype(float)
+
+            # leave type as str ('Measured' or 'Gap-filled')
+            elif dim_idx == 3:
+                pass
+    # remove dim 3 (type of measurement)
+    data = data[:, :3, :].astype(float)
+
+    # convert from milimeters to meters
+    data = data/1000
+    print(f"data shape: {data.shape}")
+
+    with open(output_filename, 'w') as f:
+        np.savez(output_filename, keypoints=data, kpt_labels=metadata['marker_names'])
+
+
+def get_qualisys_metadata(filename: str) -> dict:
+    """
+    Reads qualisys export file in .tsv format along with (custom) json files, parses metadata.
+    Exported file has to include tsv-header (qualisys export setting).
+
+    Args:
+        filename: path to the qualisys export file in .tsv format
+
+    Returns:
+        qualisys_metadata: metadata in dict format
+    """
+
+    qualisys_metadata = {}
+    with open(filename) as f:
+        # read file with csv reader. no need for pandas for just a few lines
+        reader = csv.reader(f, delimiter="\t", quotechar='"')
+
+        for ind, row in enumerate(reader):
+            # only the first 9 rows of the whole file contain the tsv header metadata
+            if ind <= 8:
+                if ind < 6:
+                    qualisys_metadata[row[0]] = float(row[1])
+                # this row has 2 pieces of info; timestamp of the recording from qualisys (this cant be used for sync), timestamp from the start of host system
+                elif ind == 7:
+                    qualisys_metadata[row[0] + "_QUALISYS"] = row[1]
+                    qualisys_metadata[row[0] + "_FROM_SYSTEM_START"] = row[2]
+                else:
+                    qualisys_metadata[row[0]] = row[1]
+            if ind == 9:
+                qualisys_metadata['marker_names'] = row[1:]
+
+    return qualisys_metadata
 
 
 def get_basename(full_file_path: str) -> str:
