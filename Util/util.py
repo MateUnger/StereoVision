@@ -47,12 +47,24 @@ class Pattern:
 
 
 def format_qualisys_export(input_filename: str, output_filename: str = None):
+    # TODO: add logging, maybe return value
+    """
+    Read qualisys export file in .tsv format, format contents to fit multidimensional np.array,
+    delete gap-filled entries and convert measurements from milimeter to meter. Save resulting output.
+
+    Args:
+        input_filename: path to input file (.tsv)
+        output_filename: optional, path to save the result as a .npz file. Default is the input_filename directory.
+
+    Returns:
+        None
+    """
     if not os.path.exists(input_filename):
         print(f"file {input_filename} does not exits")
     elif output_filename == None:
         basename = get_basename(input_filename)
         directory = os.path.dirname(input_filename)
-        output_filename = os.path.join(directory, basename, ".npy")
+        output_filename = os.path.join(directory, f"qualisys_{basename}.npz")
 
     # read first 10 rows to get number of markers, frames, marker names...
     metadata = get_qualisys_metadata(input_filename)
@@ -61,12 +73,9 @@ def format_qualisys_export(input_filename: str, output_filename: str = None):
     df = pd.read_csv(input_filename, sep="\t", header=None, skiprows=11, dtype=None)
 
     # Convert the DataFrame to a numpy array, transpose it (so it is (markers x dims) x frames)
-    data = df.to_numpy().T
+    data = df.to_numpy()[1:, :92].T
 
-    # discrard the first two rows (frame number and relative timestamp)
-    data = data[2:, :]
-
-    # reshape the data to    markers x dims x frames
+    # # reshape the data to    markers x dims x frames
     data = data.reshape(int(metadata["NO_OF_MARKERS"]), 4, int(metadata["NO_OF_FRAMES"]))
 
     # iterate over all keypoints
@@ -90,15 +99,13 @@ def format_qualisys_export(input_filename: str, output_filename: str = None):
 
     # convert from milimeters to meters
     data = data / 1000
-    print(f"data shape: {data.shape}")
 
-    with open(output_filename, "w") as f:
-        np.savez(output_filename, keypoints=data, kpt_labels=metadata["marker_names"])
+    np.savez(output_filename, keypoints=data, kpt_labels=metadata["marker_names"])
 
 
 def get_qualisys_metadata(filename: str) -> dict:
     """
-    Reads qualisys export file in .tsv format along with (custom) json files, parses metadata.
+    Read qualisys export file in .tsv format, parse metadata.
     Exported file has to include tsv-header (qualisys export setting).
 
     Args:
