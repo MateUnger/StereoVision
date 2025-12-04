@@ -1252,14 +1252,6 @@ class Custom:
             except ImportError:
                 raise ImportError(f"{pose_class} is not supported by rtmlib.")
 
-    def __call__(self, image: np.ndarray):
-        if self.one_stage:
-            keypoints, scores = self.pose_model(image)
-        else:
-            bboxes = self.det_model(image)
-            keypoints, scores = self.pose_model(image, bboxes=bboxes)
-
-        return keypoints, scores
 
     MODE = {
         "performance": {
@@ -1296,56 +1288,6 @@ class Custom:
             "pose_input_size": (640, 640),
         },
     }
-
-    def __init__(
-        self,
-        det: str = None,
-        det_input_size: tuple = (640, 640),
-        pose: str = None,
-        pose_input_size: tuple = (288, 384),
-        mode: str = "balanced",
-        to_openpose: bool = False,
-        backend: str = "onnxruntime",
-        device: str = "cpu",
-    ):
-
-        if pose is not None and "rtmo" in pose:
-            from rtmlib import RTMO
-
-            self.one_stage = True
-
-            pose = self.RTMO_MODE[mode]["pose"]
-            pose_input_size = self.RTMO_MODE[mode]["pose_input_size"]
-            self.pose_model = RTMO(
-                pose,
-                model_input_size=pose_input_size,
-                to_openpose=to_openpose,
-                backend=backend,
-                device=device,
-            )
-        else:
-            from rtmlib import YOLOX, RTMPose
-
-            self.one_stage = False
-
-            if pose is None:
-                pose = self.MODE[mode]["pose"]
-                pose_input_size = self.MODE[mode]["pose_input_size"]
-
-            if det is None:
-                det = self.MODE[mode]["det"]
-                det_input_size = self.MODE[mode]["det_input_size"]
-
-            self.det_model = YOLOX(
-                det, model_input_size=det_input_size, backend=backend, device=device
-            )
-            self.pose_model = RTMPose(
-                pose,
-                model_input_size=pose_input_size,
-                to_openpose=to_openpose,
-                backend=backend,
-                device=device,
-            )
 
     def __call__(self, image: np.ndarray):
         if self.one_stage:
