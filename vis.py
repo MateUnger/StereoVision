@@ -39,7 +39,8 @@ try:
     properties = stereo_properties
 except:
     # qualisys
-    data = loaded_data["pose_data"]
+    # data = loaded_data["pose_data"]
+    data = loaded_data["keypoints"]
     properties = qualysis_properties
     data = filter_data(
         data,
@@ -49,6 +50,7 @@ except:
         properties["filter_order"],
         properties["max_gap"],
     )
+    data = data / 1000
 
 
 print(f"data shape: {data.shape}")
@@ -89,9 +91,13 @@ class FrameViewer:
             3.09417443, 0.19429838, -(-1.11145841), marker="D", c="r", label="stereo camera"
         )
         self.ax.scatter(0, 0, 0, c="r", label="origin")
-        self.ax.scatter(0.75, 0, 0)
-        self.ax.scatter(0, 0.45, 0)
-        self.ax.scatter(0.75, 0.45, 0)
+        # self.ax.scatter(0.75, 0, 0)
+        # self.ax.scatter(0, 0.45, 0)
+        # self.ax.scatter(0.75, 0.45, 0)
+        self.ax.plot([0, 0], [0, 0.45], "blue", zs=[0, 0])
+        self.ax.plot([0, 0.75], [0, 0], "blue", zs=[0, 0])
+        self.ax.plot([0.75, 0.75], [0, 0.45], "blue", zs=[0, 0])
+        self.ax.plot([0.75, 0], [0.45, 0.45], "blue", zs=[0, 0])
         # Build a lookup for IC and FC events by frame
         ic_events = {event["frame"]: event for event in gait_events["IC"]}
         fc_events = {event["frame"]: event for event in gait_events["FC"]}

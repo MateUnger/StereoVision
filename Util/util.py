@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import warnings
 import numpy as np
-import json 
+import json
 import csv
 import importlib
 from scipy.signal import butter, filtfilt
@@ -45,14 +45,14 @@ class Pattern:
         self.pattern_points[:, :2] = np.indices(self.pattern_size).T.reshape(-1, 2)
         self.pattern_points *= square_size
 
-def format_qualisys_export(input_filename:str, output_filename:str=None):
+
+def format_qualisys_export(input_filename: str, output_filename: str = None):
     if not os.path.exists(input_filename):
         print(f"file {input_filename} does not exits")
-    elif output_filename==None:
+    elif output_filename == None:
         basename = get_basename(input_filename)
         directory = os.path.dirname(input_filename)
-        output_filename = os.path.join(directory, basename,".npy")
-
+        output_filename = os.path.join(directory, basename, ".npy")
 
     # read first 10 rows to get number of markers, frames, marker names...
     metadata = get_qualisys_metadata(input_filename)
@@ -64,7 +64,7 @@ def format_qualisys_export(input_filename:str, output_filename:str=None):
     data = df.to_numpy().T
 
     # discrard the first two rows (frame number and relative timestamp)
-    data = data[1:, :]
+    data = data[2:, :]
 
     # reshape the data to    markers x dims x frames
     data = data.reshape(int(metadata["NO_OF_MARKERS"]), 4, int(metadata["NO_OF_FRAMES"]))
@@ -89,11 +89,11 @@ def format_qualisys_export(input_filename:str, output_filename:str=None):
     data = data[:, :3, :].astype(float)
 
     # convert from milimeters to meters
-    data = data/1000
+    data = data / 1000
     print(f"data shape: {data.shape}")
 
-    with open(output_filename, 'w') as f:
-        np.savez(output_filename, keypoints=data, kpt_labels=metadata['marker_names'])
+    with open(output_filename, "w") as f:
+        np.savez(output_filename, keypoints=data, kpt_labels=metadata["marker_names"])
 
 
 def get_qualisys_metadata(filename: str) -> dict:
@@ -125,7 +125,7 @@ def get_qualisys_metadata(filename: str) -> dict:
                 else:
                     qualisys_metadata[row[0]] = row[1]
             if ind == 9:
-                qualisys_metadata['marker_names'] = row[1:]
+                qualisys_metadata["marker_names"] = row[1:]
 
     return qualisys_metadata
 
