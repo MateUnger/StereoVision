@@ -284,13 +284,12 @@ def get_gait_events_one_side(
         (heel_vel < heel_thr) | (ankle_vel < ankle_thr) | (big_toe_vel < big_toe_thr)
     ).astype(int)
 
-    # Remove too short ground contact periods
+    
     min_gc_duration = int(gait_analysis_properties["stance_min"] * fs)
     min_no_gc_duration = int(gait_analysis_properties["swing_min"] * fs)
 
-    contact_diff = np.diff(
-        np.pad(ground_contact, 1, "constant")
-    )  # NOTE:pad beginning and end of array with 0 for diff
+    # Remove too short ground contact periods
+    contact_diff = np.diff(np.pad(ground_contact, 1, "constant"))  # NOTE:pad beginning and end of array with 0 for diff
     starts = np.nonzero(contact_diff == 1)[0]
     ends = np.nonzero(contact_diff == -1)[0]
 
@@ -334,10 +333,7 @@ def get_gait_events_one_side(
         # check if gait events belong to same straight segment
         facing_same_way = perspective[current_IC] == perspective[next_IC]
         stride_duration_ok = (
-            gait_analysis_properties["stride_min"]
-            <= stride_duration
-            <= gait_analysis_properties["stride_max"]
-        )
+            gait_analysis_properties["stride_min"] <= stride_duration<= gait_analysis_properties["stride_max"])
 
         if not stride_duration_ok and facing_same_way:
             bad_GE_indices.append(i + 1)
@@ -368,7 +364,8 @@ def get_gait_events_one_side(
 
         basename, extension = os.path.splitext(os.path.basename(file_path))
         save_folder = "debug_figs"
-        filename = os.path.join(save_folder, f"{basename}_gait_events_{side}")
+        # filename = os.path.join(save_folder, f"{basename}_gait_events_{side}")
+        filename = f"{os.path.splitext(file_path)[0]}_{side}"
 
         # create array to visualize gait events after filtering out bad ones
         gait_event_vis = np.zeros_like(ground_contact_diff_straight)
@@ -402,27 +399,15 @@ def get_gait_events_one_side(
         axs[0].set_yticks([0, 3, ankle_thr])
         axs[1].set_yticks([0, 3, big_toe_thr])
         axs[2].set_yticks([0, 3, heel_thr])
-        axs[3].set_yticks(
-            [
-                -1,
-                1,
-            ],
-            ["FC", "IC"],
-        )
-        axs[3].set_yticks(
-            [
-                -1,
-                1,
-            ],
-            ["FC", "IC"],
-        )
+        axs[3].set_yticks([-1,1,],["FC", "IC"])
+        axs[3].set_yticks([-1,1,],["FC", "IC"])
         axs[4].set_yticks([0, 1], ["back", "front"])
 
         for ax in axs:
             ax.legend(loc="upper left")
             ax.grid()
 
-        # plt.tight_layout()
+        plt.tight_layout()
         plt.savefig(filename)
 
         plt.close("all")

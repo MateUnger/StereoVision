@@ -147,9 +147,9 @@ class FrameViewer:
         self.ax.set_ylabel("y")
         self.ax.set_zlabel("z")
         self.ax.set_title(f"Frame {idx}")
-        self.ax.set_xlim(-4, 4)
-        self.ax.set_ylim(-0.75, 1.25)
-        self.ax.set_zlim(0, 2)
+        # self.ax.set_xlim(-4, 4)
+        # self.ax.set_ylim(-0.75, 1.25)
+        # self.ax.set_zlim(0, 2)
         self.ax.set_box_aspect([2, 1, 1])
 
         self.ax.legend()
