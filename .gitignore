@@ -18,6 +18,6 @@
 **/__pycache__/
 
 results/*
-debug_figs/*
+debug_figs/**
 stereo_videos/*
 

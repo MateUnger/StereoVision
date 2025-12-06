@@ -153,7 +153,10 @@ def get_basename(full_file_path: str) -> str:
 
 
 def get_gait_events(
-    data: np.ndarray, kpt_labels: list, gait_analysis_properties: dict, file_path: str = None
+    keypoint_data: np.ndarray,
+    kpt_labels: list,
+    gait_analysis_properties: dict,
+    debug_figs_file_path: str = None,
 ) -> dict:
     """
     Compute all gait-events (IC,FC) for both sides (left, right) of a given recording.
@@ -169,38 +172,39 @@ def get_gait_events(
 
     """
     fps = gait_analysis_properties["fps"]
-    save_debug_fig = False
-    if file_path is not None:
-        save_debug_fig = True
 
     # get turn mask (turn / straight segments) and perspectives (front/back)
-    turn_mask, perspective = get_turns_and_perspective(data, kpt_labels, fps, 2)
+    turn_mask, perspective = get_turns_and_perspective(
+        keypoint_data=keypoint_data,
+        kpt_labels=kpt_labels,
+        sampling_fr=fps,
+        min_peak_height=0.3,
+        min_walk_duration=2,
+        debug_fig_file_path=debug_figs_file_path,
+    )
 
     events = {"left": {}, "right": {}}
 
     # get gait-events for both sides. Use 1 m/s as the initial velocity estimate
     for side in ["left", "right"]:
         _, _, velocity = get_gait_events_one_side(
-            data,
+            keypoint_data,
             kpt_labels,
             side,
             gait_analysis_properties,
             1,
             turn_mask,
             perspective,
-            False,
-            file_path,
         )
         ICs, FCs, _ = get_gait_events_one_side(
-            data,
+            keypoint_data,
             kpt_labels,
             side,
             gait_analysis_properties,
             velocity,
             turn_mask,
             perspective,
-            save_debug_fig,
-            file_path,
+            debug_figs_file_path,
         )
         events[side]["ICs"] = ICs
         events[side]["FCs"] = FCs
@@ -236,15 +240,14 @@ def get_gait_events(
 
 
 def get_gait_events_one_side(
-    data: np.ndarray,
+    keypoint_data: np.ndarray,
     kpt_labels: list,
     side: Literal["left", "right"],
     gait_analysis_properties: dict,
     velocity: float,
     turn_mask: np.ndarray,
     perspective: np.ndarray,
-    create_debug_figure: bool = False,
-    file_path: str = "",
+    debug_fig_file_path: str = None,
 ) -> tuple:
     """
     Identifies Gait Events (GE) using the velocity of markers on the foot (heel, toe, ankle).
@@ -270,9 +273,9 @@ def get_gait_events_one_side(
     big_toe_thr = gait_analysis_properties["toe_thr"] * velocity
 
     # Extract trajectories
-    heel = data[kpt_labels.index(f"{side}_heel"), :, :]
-    big_toe = data[kpt_labels.index(f"{side}_big_toe"), :, :]
-    ankle = data[kpt_labels.index(f"{side}_ankle"), :, :]
+    heel = keypoint_data[kpt_labels.index(f"{side}_heel"), :, :]
+    big_toe = keypoint_data[kpt_labels.index(f"{side}_big_toe"), :, :]
+    ankle = keypoint_data[kpt_labels.index(f"{side}_ankle"), :, :]
 
     # Compute 3D velocity magnitudes
     heel_vel = np.linalg.norm(np.diff(heel, axis=1), axis=0) * fs
@@ -284,12 +287,13 @@ def get_gait_events_one_side(
         (heel_vel < heel_thr) | (ankle_vel < ankle_thr) | (big_toe_vel < big_toe_thr)
     ).astype(int)
 
-    
     min_gc_duration = int(gait_analysis_properties["stance_min"] * fs)
     min_no_gc_duration = int(gait_analysis_properties["swing_min"] * fs)
 
     # Remove too short ground contact periods
-    contact_diff = np.diff(np.pad(ground_contact, 1, "constant"))  # NOTE:pad beginning and end of array with 0 for diff
+    contact_diff = np.diff(
+        np.pad(ground_contact, 1, "constant")
+    )  # NOTE:pad beginning and end of array with 0 for diff
     starts = np.nonzero(contact_diff == 1)[0]
     ends = np.nonzero(contact_diff == -1)[0]
 
@@ -333,7 +337,10 @@ def get_gait_events_one_side(
         # check if gait events belong to same straight segment
         facing_same_way = perspective[current_IC] == perspective[next_IC]
         stride_duration_ok = (
-            gait_analysis_properties["stride_min"] <= stride_duration<= gait_analysis_properties["stride_max"])
+            gait_analysis_properties["stride_min"]
+            <= stride_duration
+            <= gait_analysis_properties["stride_max"]
+        )
 
         if not stride_duration_ok and facing_same_way:
             bad_GE_indices.append(i + 1)
@@ -360,18 +367,24 @@ def get_gait_events_one_side(
     stride_durations = np.array(stride_durations)
 
     mean_velocity = np.nanmean(stride_lengths / stride_durations)
-    if create_debug_figure:
 
-        basename, extension = os.path.splitext(os.path.basename(file_path))
+    create_debug_fig = False
+    if debug_fig_file_path != None:
+        create_debug_fig = True
+
+    # fmt: off
+    if create_debug_fig:
+
+        basename, extension = os.path.splitext(os.path.basename(debug_fig_file_path))
         save_folder = "debug_figs"
-        # filename = os.path.join(save_folder, f"{basename}_gait_events_{side}")
-        filename = f"{os.path.splitext(file_path)[0]}_{side}"
+        filename = os.path.join(save_folder, f"{basename}_gait_events_{side}")
+        # filename = f"{os.path.splitext(debug_fig_file_path)[0]}_{side}"
 
         # create array to visualize gait events after filtering out bad ones
         gait_event_vis = np.zeros_like(ground_contact_diff_straight)
         gait_event_vis[ICs] = 1
         gait_event_vis[FCs] = -1
-        tS = np.linspace(0, len(ankle_vel) / 60, len(ankle_vel))
+        tS = np.linspace(0, len(ankle_vel) / fs, len(ankle_vel))
 
         plt.close("all")
         fig, axs = plt.subplots(5, 1, figsize=(14, 9))
@@ -399,8 +412,8 @@ def get_gait_events_one_side(
         axs[0].set_yticks([0, 3, ankle_thr])
         axs[1].set_yticks([0, 3, big_toe_thr])
         axs[2].set_yticks([0, 3, heel_thr])
-        axs[3].set_yticks([-1,1,],["FC", "IC"])
-        axs[3].set_yticks([-1,1,],["FC", "IC"])
+        axs[3].set_yticks([-1,1,],["FC", "IC"],)
+        axs[3].set_yticks([-1,1,],["FC", "IC"],)
         axs[4].set_yticks([0, 1], ["back", "front"])
 
         for ax in axs:
@@ -409,9 +422,10 @@ def get_gait_events_one_side(
 
         plt.tight_layout()
         plt.savefig(filename)
-
         plt.close("all")
-
+        print(f"figure saved to: \n{filename}")
+        
+        #fmt: on
     return (ICs, FCs, mean_velocity)
 
 
@@ -481,13 +495,13 @@ def get_points(
 
 
 def get_turns_and_perspective(
-    data: np.ndarray,
+    keypoint_data: np.ndarray,
     kpt_labels: list,
     sampling_fr: float,
     min_peak_height: float = 0.3,
     relative_height: float = 0.85,
     min_walk_duration: float = 2,
-    create_debug_fig: bool = False,
+    debug_fig_file_path: str = None,
 ) -> tuple:
     """
     Identifies turning segments (straight/turning) and perspective (front / back) based on shoulder coordinates using peak detection method.
@@ -506,8 +520,8 @@ def get_turns_and_perspective(
         perspective: bollean array indicating frontal facing (1) and back facing (0) segments.
     """
     # get the y coord of shoulders (for qualisys x-y plane is horizontal, y coord was forwards/backwards movement)
-    shoulder_R = data[kpt_labels.index("right_shoulder"), 1, :]
-    shoulder_L = data[kpt_labels.index("left_shoulder"), 1, :]
+    shoulder_R = keypoint_data[kpt_labels.index("right_shoulder"), 1, :]
+    shoulder_L = keypoint_data[kpt_labels.index("left_shoulder"), 1, :]
 
     # normalize signal
     shoulder_diff = np.abs(np.diff(shoulder_R - shoulder_L))
@@ -543,26 +557,34 @@ def get_turns_and_perspective(
     perspective = np.where(shoulder_L > shoulder_R, np.True_, np.False_)
     turn_mask = turn_mask.astype(np.bool)
 
-    if create_debug_fig:
-        tS = np.linspace(0, len(shoulder_R) / sampling_fr, len(shoulder_R))
+    if debug_fig_file_path is not None:
+
+        basename, extension = os.path.splitext(os.path.basename(debug_fig_file_path))
+        save_folder = "debug_figs"
+        filename = os.path.join(save_folder, f"{basename}_turns_and_perspective")
+
+        t = np.linspace(0, len(shoulder_R) / sampling_fr, len(shoulder_R))
 
         plt.close("all")
         fig, axs = plt.subplots(2, 1, figsize=(14, 4))
 
-        axs[0].plot(tS[1:], shoulder_diff, label="shoulder diff")
-        axs[0].plot(tS, perspective, label="front, back")
+        axs[0].plot(t[1:], shoulder_diff, label="shoulder diff")
+        axs[0].plot(t, perspective, label="front, back")
         axs[0].plot(left_ips / sampling_fr, width_heights, "o", label="turn start", markersize=4)
         axs[0].plot(right_ips / sampling_fr, width_heights, "o", label="turn end", markersize=4)
-        axs[0].plot(tS, turn_mask, label="straight/turn")
+        axs[0].plot(t, turn_mask, label="straight/turn")
 
-        axs[1].plot(tS, shoulder_L, label="left")
-        axs[1].plot(tS, shoulder_R, label="right")
+        axs[1].plot(t, shoulder_L, label="left")
+        axs[1].plot(t, shoulder_R, label="right")
 
         for ax in axs:
             ax.legend(loc="upper left")
             ax.grid()
 
         plt.tight_layout()
+        plt.savefig(filename)
+        plt.close("all")
+        print(f"figure saved to: \n{filename}")
 
     return (turn_mask, perspective)
 
@@ -1236,7 +1258,6 @@ class Custom:
                 )
             except ImportError:
                 raise ImportError(f"{pose_class} is not supported by rtmlib.")
-
 
     MODE = {
         "performance": {
