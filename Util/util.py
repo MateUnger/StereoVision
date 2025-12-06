@@ -713,9 +713,14 @@ def get_frame_index(gait_events: list, side: str, lower_bound: int, upper_bound:
     ]
 
 
-def compute_pooled_stats(left_values, right_values):
+def get_mean_and_cv(left_values:np.ndarray, right_values:np.ndarray):
     """
-    Calculates
+    Calculates the mean and the coefficient of variation (cv [%]) for both sides (left,right) together. 
+    
+    Args:
+        left_values: values belonging to the left side
+        right_values: values belonging to the right side
+
     """
     pooled = np.concatenate([left_values, right_values])
     pooled = pooled[~np.isnan(pooled)]
@@ -845,10 +850,10 @@ def gait_analysis(data: np.ndarray, events: dict, kpt_labels: list, properties: 
                     metrics[pers][ipsi]["bos"].append(bos)
 
     parameters = {}
-    for state, data in metrics.items():
-        parameters[state] = {
+    for perspective, data in metrics.items():
+        parameters[perspective] = {
             metric: {
-                **compute_pooled_stats(data["left"][metric], data["right"][metric]),
+                **get_mean_and_cv(data["left"][metric], data["right"][metric]),
                 "asymmetry": compute_asymmetry(data["left"][metric], data["right"][metric]),
             }
             for metric in data["left"]
