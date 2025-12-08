@@ -35,7 +35,7 @@ if file_path:
 
 try:
     # stereo
-    data = loaded_data["keypoints_3d_filtered"]
+    data = loaded_data["keypoints_3d"]
     properties = stereo_properties
 except:
     # qualisys
@@ -50,7 +50,6 @@ except:
         properties["filter_order"],
         properties["max_gap"],
     )
-    data = data / 1000
 
 
 print(f"data shape: {data.shape}")
@@ -147,9 +146,9 @@ class FrameViewer:
         self.ax.set_ylabel("y")
         self.ax.set_zlabel("z")
         self.ax.set_title(f"Frame {idx}")
-        # self.ax.set_xlim(-4, 4)
-        # self.ax.set_ylim(-0.75, 1.25)
-        # self.ax.set_zlim(0, 2)
+        self.ax.set_xlim(-4, 4)
+        self.ax.set_ylim(-0.75, 1.25)
+        self.ax.set_zlim(0, 2)
         self.ax.set_box_aspect([2, 1, 1])
 
         self.ax.legend()
