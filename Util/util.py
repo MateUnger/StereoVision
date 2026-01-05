@@ -350,12 +350,12 @@ def get_gait_events_one_side(
             # take the spatial difference of [KEYPOINT] between current & next IC event
             #
             stride_length_heel = np.linalg.norm(heel[:, next_IC] - heel[:, current_IC])
-            # stride_length_ankle = np.linalg.norm(ankle[:, next_IC] - ankle[:, current_IC])
+            stride_length_ankle = np.linalg.norm(ankle[:, next_IC] - ankle[:, current_IC])
             # stride_length_toe = np.linalg.norm(big_toe[:, next_IC] - big_toe[:, current_IC])
 
             # stride_lengths.append(np.array([stride_length_heel, stride_length_ankle, stride_length_toe]))
-            stride_lengths.append(stride_length_heel)
-            # stride_lengths.append(stride_length_ankle)
+            # stride_lengths.append(stride_length_heel)
+            stride_lengths.append(stride_length_ankle)
             stride_durations.append(stride_duration)
             direction.append(perspective[current_IC])
 
@@ -375,10 +375,10 @@ def get_gait_events_one_side(
     # fmt: off
     if create_debug_fig:
 
-        basename, extension = os.path.splitext(os.path.basename(debug_fig_file_path))
-        save_folder = "debug_figs"
-        filename = os.path.join(save_folder, f"{basename}_gait_events_{side}")
-        # filename = f"{os.path.splitext(debug_fig_file_path)[0]}_{side}"
+        # basename, extension = os.path.splitext(os.path.basename(debug_fig_file_path))
+        # save_folder = "debug_figs"
+        # filename = os.path.join(save_folder, f"{basename}_gait_events_{side}")
+        filename = f"{os.path.splitext(debug_fig_file_path)[0]}_{side}"
 
         # create array to visualize gait events after filtering out bad ones
         gait_event_vis = np.zeros_like(ground_contact_diff_straight)
@@ -559,9 +559,11 @@ def get_turns_and_perspective(
 
     if debug_fig_file_path is not None:
 
-        basename, extension = os.path.splitext(os.path.basename(debug_fig_file_path))
-        save_folder = "debug_figs"
-        filename = os.path.join(save_folder, f"{basename}_turns_and_perspective")
+        # basename, extension = os.path.splitext(os.path.basename(debug_fig_file_path))
+        # save_folder = "debug_figs"
+        # filename = os.path.join(save_folder, f"{basename}_turns_and_perspective")
+        filename = f"{os.path.splitext(debug_fig_file_path)[0]}_turns_and_perspective"
+
 
         t = np.linspace(0, len(shoulder_R) / sampling_fr, len(shoulder_R))
 
@@ -694,7 +696,7 @@ def filter_data(
     return filtered_data
 
 
-def get_frame_index(gait_events: list, side: str, lower_bound: int, upper_bound: int) -> list:
+def get_frame_indices(gait_events: list, side: str, lower_bound: int, upper_bound: int) -> list:
     """
     Return frame indices from gait_events with the given side from lower_bound to upper_bound frame index.
 
@@ -741,12 +743,12 @@ def compute_asymmetry(left_values, right_values):
     return 100 * (1 - smaller / larger) if larger > 0 else np.nan
 
 
-def gait_analysis(data: np.ndarray, events: dict, kpt_labels: list, properties: dict) -> dict:
+def gait_analysis(keypoint_data: np.ndarray, gait_events: dict, kpt_labels: list, gait_analysis_properties: dict) -> dict:
 
     # static properties for calculations
-    fs = properties["fps"]
-    stride_min = properties["stride_min"]
-    stride_max = properties["stride_max"]
+    fs = gait_analysis_properties["fps"]
+    stride_min = gait_analysis_properties["stride_min"]
+    stride_max = gait_analysis_properties["stride_max"]
 
     perspectives = ["all", "front_straight", "back_straight"]
     # metrics of interest (for each side)
@@ -771,8 +773,8 @@ def gait_analysis(data: np.ndarray, events: dict, kpt_labels: list, properties: 
     }
 
     # Initial- and Final-contact gait events
-    ICs = events["IC"]
-    FCs = events["FC"]
+    ICs = gait_events["IC"]
+    FCs = gait_events["FC"]
 
     # iterate Initial Contact gait events
     for i, IC in enumerate(ICs):
@@ -824,15 +826,15 @@ def gait_analysis(data: np.ndarray, events: dict, kpt_labels: list, properties: 
                 if any(x is None for x in [IC0, IC1, IC2, FC0, FC1, FC2]):
                     continue
 
-                # heel point
-                HP0 = np.nanmedian(data[kpt_labels.index(f"{ipsi}_heel"), :, IC0:FC0], axis=1)
-                HP2 = np.nanmedian(data[kpt_labels.index(f"{ipsi}_heel"), :, IC2:FC2], axis=1)
-                HP1 = np.nanmedian(data[kpt_labels.index(f"{contra}_heel"), :, IC1:FC1], axis=1)
+                # # heel point
+                # HP0 = np.nanmedian(data[kpt_labels.index(f"{ipsi}_heel"), :, IC0:FC0], axis=1)
+                # HP2 = np.nanmedian(data[kpt_labels.index(f"{ipsi}_heel"), :, IC2:FC2], axis=1)
+                # HP1 = np.nanmedian(data[kpt_labels.index(f"{contra}_heel"), :, IC1:FC1], axis=1)
 
                 # TODO: try it with ankle kpt too
-                # HP0 = np.nanmedian(data[kpt_labels.index(f"{ipsi}_ankle"), :, IC0:FC0], axis=1)
-                # HP2 = np.nanmedian(data[kpt_labels.index(f"{ipsi}_ankle"), :, IC2:FC2], axis=1)
-                # HP1 = np.nanmedian(data[kpt_labels.index(f"{contra}_ankle"), :, IC1:FC1], axis=1)
+                HP0 = np.nanmedian(keypoint_data[kpt_labels.index(f"{ipsi}_ankle"), :, IC0:FC0], axis=1)
+                HP2 = np.nanmedian(keypoint_data[kpt_labels.index(f"{ipsi}_ankle"), :, IC2:FC2], axis=1)
+                HP1 = np.nanmedian(keypoint_data[kpt_labels.index(f"{contra}_ankle"), :, IC1:FC1], axis=1)
 
                 # stride lenght on xy plane
                 slen = np.linalg.norm(HP2[:2] - HP0[:2])
@@ -864,11 +866,13 @@ def gait_analysis(data: np.ndarray, events: dict, kpt_labels: list, properties: 
 
 def display_results(parameters):
     parameter_order = [
-        "stime",
-        "slen",
-        "vel",
-        "swing",
-        "dsupp",
+        "step_time",
+        "step_length",
+        "stride_time",
+        "stride_length",
+        "stride_velocity",
+        "swing_time",
+        "total_double_support_time",
         "bos",
     ]
     statistic_order = ["Mean [m]", "CV [%]", "Asymmetry [%]"]
