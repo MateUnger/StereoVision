@@ -755,12 +755,14 @@ def gait_analysis(keypoint_data: np.ndarray, gait_events: dict, kpt_labels: list
     moi = {
         metric: []
         for metric in [
-            "stime",
-            "slen",
-            "vel",
-            "swing",
-            "dsupp",
-            "bos",
+            "step_time",
+            "step_length",
+            "stride_time",
+            "stride_length",
+            "stride_velocity",
+            "swing_time",
+            "double_support_time",
+            "base_of_support",
         ]
     }
     # output data structure
@@ -780,7 +782,8 @@ def gait_analysis(keypoint_data: np.ndarray, gait_events: dict, kpt_labels: list
     for i, IC in enumerate(ICs):
 
         # ipsilateral and contralateral sides for current gait event
-        ipsi, contra = IC["side"], "left" if IC["side"] == "right" else "right"
+        ipsi = IC["side"]
+        contra = "left" if IC["side"] == "right" else "right"
 
         # perspective value ('straight'/'turn') or 'all' if missing
         perspective = IC.get("perspective", "all")
@@ -795,61 +798,80 @@ def gait_analysis(keypoint_data: np.ndarray, gait_events: dict, kpt_labels: list
 
         # check if event order is correct, filter false positives
         if same_foot_next_idx is not None:
-
             # stride time = time elapsed between heelstrikes of the same foot
-            stime = (ICs[same_foot_next_idx]["frame"] - IC["frame"]) / fs
+            stride_time = (ICs[same_foot_next_idx]["frame"] - IC["frame"]) / fs
 
             # stride time falls in realistic time range
-            if stride_min <= stime <= stride_max:
+            if stride_min <= stride_time <= stride_max:
                 # frame index of current and next IC event (ipsilateral)
-                IC0, IC2 = IC["frame"], ICs[same_foot_next_idx]["frame"]
+                IC0 = IC["frame"]
+                IC2 = ICs[same_foot_next_idx]["frame"]
 
                 # frame index of first contralateral heel strike (between current and next ipsilateral)
-                IC1 = get_frame_index(ICs, contra, IC0, IC2)
+                IC1 = get_frame_indices(ICs, contra, IC0, IC2)
 
-                FC0, FC1, FC2 = None, None, None
+                FC0, FC1 = None, None
 
-                # if there's a next contralateral GE
+                # if there's a next contra step
                 if IC1:
                     IC1 = IC1[0]
 
                     # see gait_events.png
-                    FC0 = get_frame_index(FCs, contra, IC0, IC1)
-                    FC1 = get_frame_index(FCs, ipsi, IC1, IC2)
-                    FC2 = get_frame_index(FCs, ipsi, IC2, IC2 + int(fs * stride_max))
+                    FC0 = get_frame_indices(FCs, contra, IC0, IC1)
+                    FC1 = get_frame_indices(FCs, ipsi, IC1, IC2)                
 
                     FC0 = FC0[0] if FC0 else None
                     FC1 = FC1[0] if FC1 else None
-                    FC2 = FC2[0] if FC2 else None
 
-                # if either of the values is None, ignore it
-                if any(x is None for x in [IC0, IC1, IC2, FC0, FC1, FC2]):
+                # if either of the values is None, skip cycle
+                if any(x is None for x in [IC0, IC1, IC2, FC0, FC1]):
+                    # print(i, IC['frame'], ipsi, perspective, IC0, FC0, IC1, FC1, IC2)
                     continue
+                
 
-                # # heel point
-                # HP0 = np.nanmedian(data[kpt_labels.index(f"{ipsi}_heel"), :, IC0:FC0], axis=1)
-                # HP2 = np.nanmedian(data[kpt_labels.index(f"{ipsi}_heel"), :, IC2:FC2], axis=1)
-                # HP1 = np.nanmedian(data[kpt_labels.index(f"{contra}_heel"), :, IC1:FC1], axis=1)
+                # TODO: fix this shit
+    #------------------------------------------------------------------------------------------------------------------------------
+                IC0_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :,IC0]
+                IC1_heel_position = keypoint_data[kpt_labels.index(f"{contra}_heel"), :,IC1]
+                IC2_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :,IC2]
 
-                # TODO: try it with ankle kpt too
-                HP0 = np.nanmedian(keypoint_data[kpt_labels.index(f"{ipsi}_ankle"), :, IC0:FC0], axis=1)
-                HP2 = np.nanmedian(keypoint_data[kpt_labels.index(f"{ipsi}_ankle"), :, IC2:FC2], axis=1)
-                HP1 = np.nanmedian(keypoint_data[kpt_labels.index(f"{contra}_ankle"), :, IC1:FC1], axis=1)
 
-                # stride lenght on xy plane
-                slen = np.linalg.norm(HP2[:2] - HP0[:2])
-                vel = slen / stime
-                bos = np.linalg.norm(np.cross(HP2 - HP1, HP1 - HP0)) / np.linalg.norm(HP2 - HP1)
-                swing = (IC2 - FC1) / fs
-                dsupp = ((FC0 - IC0) + (FC1 - IC1)) / fs
+                #step time [sec] = ipsi IC -> contra IC, IC1-IC0
+                step_time = (IC1-IC0)/fs
+        
+                #swing time [sec] = ipsi FC -> next ispi IC, IC2-FC1
+                swing_time = (IC2-FC1)/fs
+
+                # step length [m] = ipsi IC-> contra IC, IC1-IC0
+                step_length = np.linalg.norm(IC1_heel_position-IC0_heel_position)
+
+                #stride lenght [m] = ipsi IC -> ipsi IC, IC2-IC0
+                stride_length = np.linalg.norm(IC2_heel_position-IC0_heel_position)
+
+                #stride velocity [m/s] = stide lenght / stride time
+                stride_velocity = stride_length / stride_time
+                
+                #double support time [sec]= (ipsi IC-> contra FC) + (conrta IC->ispi FC), (FC0-IC0)+(FC1-IC1)
+                double_support_time = ((FC0-IC0)+(FC1-IC1))/fs
+
+                #base of support [m] = perpendicular distance from contra IC heel to 2 consecutive ipsi IC heel line
+                # line connecting consecutive ispi heel positions
+                IC2_IC0_line = IC2_heel_position-IC0_heel_position
+                # line from contra IC heel to current ipsi IC heel
+                IC0_IC1_line = IC0_heel_position-IC1_heel_position
+
+                base_of_support = np.linalg.norm(np.cross(IC2_IC0_line, IC0_IC1_line))/np.linalg.norm(IC2_IC0_line)
+
 
                 for pers in ["all", perspective]:
-                    metrics[pers][ipsi]["stime"].append(stime)
-                    metrics[pers][ipsi]["slen"].append(slen)
-                    metrics[pers][ipsi]["vel"].append(vel)
-                    metrics[pers][ipsi]["swing"].append(swing)
-                    metrics[pers][ipsi]["dsupp"].append(dsupp)
-                    metrics[pers][ipsi]["bos"].append(bos)
+                    metrics[pers][ipsi]["step_time"].append(step_time)
+                    metrics[pers][ipsi]["step_length"].append(step_length)
+                    metrics[pers][ipsi]["stride_time"].append(stride_time)
+                    metrics[pers][ipsi]["stride_length"].append(stride_length)
+                    metrics[pers][ipsi]["stride_velocity"].append(stride_velocity)
+                    metrics[pers][ipsi]["swing_time"].append(swing_time)
+                    metrics[pers][ipsi]["double_support_time"].append(double_support_time)
+                    metrics[pers][ipsi]["base_of_support"].append(base_of_support)
 
     parameters = {}
     for perspective, data in metrics.items():
@@ -872,8 +894,8 @@ def display_results(parameters):
         "stride_length",
         "stride_velocity",
         "swing_time",
-        "total_double_support_time",
-        "bos",
+        "double_support_time",
+        "base_of_support",
     ]
     statistic_order = ["Mean [m]", "CV [%]", "Asymmetry [%]"]
 
