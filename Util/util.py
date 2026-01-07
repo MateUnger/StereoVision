@@ -25,6 +25,7 @@ from scipy.signal import butter, filtfilt
 import copy
 import numpy as np
 import pandas as pd
+import pingouin as pg
 from scipy.signal import butter, filtfilt, find_peaks, peak_widths
 from scipy.interpolate import CubicSpline
 
@@ -44,6 +45,40 @@ class Pattern:
         self.pattern_points = np.zeros((np.prod(self.pattern_size), 3), np.float32)
         self.pattern_points[:, :2] = np.indices(self.pattern_size).T.reshape(-1, 2)
         self.pattern_points *= square_size
+
+
+def icc_statistics(method_a, method_b):
+    """
+    Calculate Intraclass Correlation Coefficient (ICC) between two methods.
+
+    Parameters:
+    - method_a: Array-like, measurements from method A.
+    - method_b: Array-like, measurements from method B.
+
+    Returns:
+    - icc_results: DataFrame with ICC results.
+    """
+
+    subjects = list(range(1, len(method_a) + 1))
+
+    # Prepare the DataFrame
+    data = pd.DataFrame(
+        {
+            "Subject_ID": subjects + subjects,  # Repeat subject IDs for each method
+            "Measurement": list(method_a) + list(method_b),  # Combine measurements
+            "Method": ["A"] * len(method_a) + ["B"] * len(method_b),  # Label methods
+        }
+    )
+
+    # Convert "Method" to categorical
+    data["Method"] = pd.Categorical(data["Method"])
+
+    # Calculate ICCs
+    icc_results = pg.intraclass_corr(
+        data=data, targets="Subject_ID", raters="Method", ratings="Measurement"
+    )
+
+    return icc_results
 
 
 def format_qualisys_export(input_filename: str, output_filename: str = None):
@@ -564,7 +599,6 @@ def get_turns_and_perspective(
         # filename = os.path.join(save_folder, f"{basename}_turns_and_perspective")
         filename = f"{os.path.splitext(debug_fig_file_path)[0]}_turns_and_perspective"
 
-
         t = np.linspace(0, len(shoulder_R) / sampling_fr, len(shoulder_R))
 
         plt.close("all")
@@ -715,10 +749,10 @@ def get_frame_indices(gait_events: list, side: str, lower_bound: int, upper_boun
     ]
 
 
-def get_mean_and_cv(left_values:np.ndarray, right_values:np.ndarray):
+def get_mean_and_cv(left_values: np.ndarray, right_values: np.ndarray):
     """
-    Calculates the mean and the coefficient of variation (cv [%]) for both sides (left,right) together. 
-    
+    Calculates the mean and the coefficient of variation (cv [%]) for both sides (left,right) together.
+
     Args:
         left_values: values belonging to the left side
         right_values: values belonging to the right side
@@ -743,7 +777,9 @@ def compute_asymmetry(left_values, right_values):
     return 100 * (1 - smaller / larger) if larger > 0 else np.nan
 
 
-def gait_analysis(keypoint_data: np.ndarray, gait_events: dict, kpt_labels: list, gait_analysis_properties: dict) -> dict:
+def gait_analysis(
+    keypoint_data: np.ndarray, gait_events: dict, kpt_labels: list, gait_analysis_properties: dict
+) -> dict:
 
     # static properties for calculations
     fs = gait_analysis_properties["fps"]
@@ -818,7 +854,7 @@ def gait_analysis(keypoint_data: np.ndarray, gait_events: dict, kpt_labels: list
 
                     # see gait_events.png
                     FC0 = get_frame_indices(FCs, contra, IC0, IC1)
-                    FC1 = get_frame_indices(FCs, ipsi, IC1, IC2)                
+                    FC1 = get_frame_indices(FCs, ipsi, IC1, IC2)
 
                     FC0 = FC0[0] if FC0 else None
                     FC1 = FC1[0] if FC1 else None
@@ -827,41 +863,40 @@ def gait_analysis(keypoint_data: np.ndarray, gait_events: dict, kpt_labels: list
                 if any(x is None for x in [IC0, IC1, IC2, FC0, FC1]):
                     # print(i, IC['frame'], ipsi, perspective, IC0, FC0, IC1, FC1, IC2)
                     continue
-                
 
                 # TODO: fix this shit
-    #------------------------------------------------------------------------------------------------------------------------------
-                IC0_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :,IC0]
-                IC1_heel_position = keypoint_data[kpt_labels.index(f"{contra}_heel"), :,IC1]
-                IC2_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :,IC2]
+                # ------------------------------------------------------------------------------------------------------------------------------
+                IC0_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :, IC0]
+                IC1_heel_position = keypoint_data[kpt_labels.index(f"{contra}_heel"), :, IC1]
+                IC2_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :, IC2]
 
+                # step time [sec] = ipsi IC -> contra IC, IC1-IC0
+                step_time = (IC1 - IC0) / fs
 
-                #step time [sec] = ipsi IC -> contra IC, IC1-IC0
-                step_time = (IC1-IC0)/fs
-        
-                #swing time [sec] = ipsi FC -> next ispi IC, IC2-FC1
-                swing_time = (IC2-FC1)/fs
+                # swing time [sec] = ipsi FC -> next ispi IC, IC2-FC1
+                swing_time = (IC2 - FC1) / fs
 
                 # step length [m] = ipsi IC-> contra IC, IC1-IC0
-                step_length = np.linalg.norm(IC1_heel_position-IC0_heel_position)
+                step_length = np.linalg.norm(IC1_heel_position - IC0_heel_position)
 
-                #stride lenght [m] = ipsi IC -> ipsi IC, IC2-IC0
-                stride_length = np.linalg.norm(IC2_heel_position-IC0_heel_position)
+                # stride lenght [m] = ipsi IC -> ipsi IC, IC2-IC0
+                stride_length = np.linalg.norm(IC2_heel_position - IC0_heel_position)
 
-                #stride velocity [m/s] = stide lenght / stride time
+                # stride velocity [m/s] = stide lenght / stride time
                 stride_velocity = stride_length / stride_time
-                
-                #double support time [sec]= (ipsi IC-> contra FC) + (conrta IC->ispi FC), (FC0-IC0)+(FC1-IC1)
-                double_support_time = ((FC0-IC0)+(FC1-IC1))/fs
 
-                #base of support [m] = perpendicular distance from contra IC heel to 2 consecutive ipsi IC heel line
+                # double support time [sec]= (ipsi IC-> contra FC) + (conrta IC->ispi FC), (FC0-IC0)+(FC1-IC1)
+                double_support_time = ((FC0 - IC0) + (FC1 - IC1)) / fs
+
+                # base of support [m] = perpendicular distance from contra IC heel to 2 consecutive ipsi IC heel line
                 # line connecting consecutive ispi heel positions
-                IC2_IC0_line = IC2_heel_position-IC0_heel_position
+                IC2_IC0_line = IC2_heel_position - IC0_heel_position
                 # line from contra IC heel to current ipsi IC heel
-                IC0_IC1_line = IC0_heel_position-IC1_heel_position
+                IC0_IC1_line = IC0_heel_position - IC1_heel_position
 
-                base_of_support = np.linalg.norm(np.cross(IC2_IC0_line, IC0_IC1_line))/np.linalg.norm(IC2_IC0_line)
-
+                base_of_support = np.linalg.norm(
+                    np.cross(IC2_IC0_line, IC0_IC1_line)
+                ) / np.linalg.norm(IC2_IC0_line)
 
                 for pers in ["all", perspective]:
                     metrics[pers][ipsi]["step_time"].append(step_time)
