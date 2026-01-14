@@ -475,7 +475,7 @@ def get_serial_number(filename: str) -> str:
     return filename.split("_")[-1].split(".")[0]
 
 
-def get_points(
+def get_image_points(
     img, file_name, output_dir, pattern_params: Pattern, save_output=False
 ) -> np.ndarray:
     """
