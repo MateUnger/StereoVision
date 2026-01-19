@@ -9,6 +9,7 @@ import csv
 import importlib
 from scipy.signal import butter, filtfilt
 from scipy.interpolate import CubicSpline
+from scipy.stats import pearsonr
 import matplotlib.pyplot as plt
 import logging
 
@@ -45,6 +46,221 @@ class Pattern:
         self.pattern_points = np.zeros((np.prod(self.pattern_size), 3), np.float32)
         self.pattern_points[:, :2] = np.indices(self.pattern_size).T.reshape(-1, 2)
         self.pattern_points *= square_size
+
+
+def remove_nan_positions(arr1:np.ndarray, arr2:np.ndarray)->tuple:
+    """
+    Remove Nan elements from both input arrays (of equal length). 
+    Elements are only kepth if at position P both arrays have valid values.
+    
+    Args: 
+        arr1: first input array
+        arr2: second input array
+    
+    Returns: 
+        arr1_cleaned: arr1 containing elements where both arr1 and arr2 are valid (not Nan)
+        arr2_cleaned: arr2 ....same as above
+
+    """
+    if arr1.shape != arr2.shape:
+        raise Exception(f"Input arrays must have the same shape. array_1: {arr1.shape}, array2: {arr2.shape}")
+
+    # Find positions of NaNs in both arrays
+    nan_positions_arr1 = np.isnan(arr1)
+    nan_positions_arr2 = np.isnan(arr2)
+    
+    # Combine positions to find indices to remove
+    nan_positions_combined = nan_positions_arr1 | nan_positions_arr2
+    
+    # Filter out the NaN positions from both arrays
+    arr1_cleaned = arr1[~nan_positions_combined]
+    arr2_cleaned = arr2[~nan_positions_combined]
+    
+    return arr1_cleaned, arr2_cleaned
+
+def bland_altman_statistics(method_a, method_b, plot=False):
+    """
+    Calculate Bland-Altman statistics and optionally plot the Bland-Altman plot.
+
+    Parameters:
+    - method_a: Array-like, measurements from method A.
+    - method_b: Array-like, measurements from method B.
+    - plot: Boolean, if True, plots the Bland-Altman plot.
+
+    Returns:
+    - bias: Mean difference between the methods.
+    - rpc: Reproducibility coefficient (1.96 * standard deviation of differences).
+    - cv: Coefficient of variation.
+    """
+
+    # Calculating differences and means
+    differences = method_b - method_a
+    mean_difference = np.mean(differences)
+    std_dev_difference = np.std(differences, ddof=1)
+    means = (method_a + method_b) / 2
+
+    # Bias (Mean Difference)
+    bias = mean_difference
+
+    #TODO: find out why the 1.96 is hardcoded
+    # Reproducibility Coefficient (RPC)
+    rpc = 1.96 * std_dev_difference
+
+    # Coefficient of Variation (CV)
+    cv = (std_dev_difference / abs(bias)) * 100
+
+    # Bland-Altman Plot
+    if plot:
+        plt.scatter(means, differences)
+        plt.axhline(mean_difference, color="gray", linestyle="--")
+        plt.axhline(mean_difference + rpc, color="gray", linestyle="--")
+        plt.axhline(mean_difference - rpc, color="gray", linestyle="--")
+        plt.title("Bland-Altman Plot")
+        plt.xlabel("Mean of Two Methods")
+        plt.ylabel("Difference Between Methods")
+        plt.show()
+
+        # Printing the calculated values
+        print(f"Bias (Mean Difference): {bias}")
+        print(f"Reproducibility Coefficient (RPC): {rpc}")
+        print(f"Coefficient of Variation (CV): {cv:.2f}%")
+
+    return bias, rpc, cv
+
+def uniform_statistics(method_gt, method_pd):
+    """
+    Calculate Pearson correlation coefficient, Bland-Altman statistics, and ICC between two methods.
+
+    Parameters:
+    - method_gt: Array-like, measurements from method A (ground truth).
+    - method_pd: Array-like, measurements from method B (new measurement system).
+
+    Returns:
+    - correlation_coefficient: Pearson correlation coefficient between the two methods.
+    - p_value: P-value for the Pearson correlation.
+    - bias: Mean difference between the methods.
+    - rpc: Reproducibility coefficient.
+    - cv: Coefficient of variation.
+    - icc_results: DataFrame with ICC results.
+    """
+
+    method_gt = np.array(method_gt)
+    method_pd = np.array(method_pd)
+
+    # Filter arrays for NaNs
+    method_gt, method_pd = remove_nan_positions(method_gt, method_pd)
+    
+    # absolute error
+    absolute_error = np.mean(np.abs(method_gt - method_pd))
+    # relative error
+    relative_error = np.mean(np.abs((method_gt - method_pd) / method_gt)) * 100
+
+    # Calculate RMSE
+    rmse = np.mean(np.sqrt(np.mean((method_gt - method_pd) ** 2)))
+    # relative RMSE
+    relative_rmse = (rmse / np.mean(method_gt))
+
+    mean_a = np.nanmean(method_gt)
+    mean_b = np.nanmean(method_pd)
+    std_a = np.nanstd(method_gt)
+    std_b = np.nanstd(method_pd)
+
+    # Calculate Pearson correlation coefficient and p-value
+    correlation_coefficient, p_value = pearsonr(method_gt, method_pd)
+
+    # Calculate Bland-Altman statistics
+    bias, rpc, cv = bland_altman_statistics(method_gt, method_pd)
+
+    # Calculate ICC
+    icc_results = icc_statistics(method_gt, method_pd)
+
+    # Create a formatted table
+    table = (
+        f"Mean GT: {mean_a:.4f}\n"
+        f"Mean PD: {mean_b:.4f}\n"
+        f"Std GT: {std_a:.4f}\n"
+        f"Std PD: {std_b:.4f}\n"
+        f"Absolute Error: {absolute_error:.4f}\n"
+        f"Relative Error: {relative_error:.4f}\n"
+        f"RMSE: {rmse:.4f}\n"
+        f"Relative RMSE: {relative_rmse:.4f}\n"
+        f"Correlation Coefficient: {correlation_coefficient:.4f}\n"
+        f"P-value: {p_value:.4f}\n"
+        f"Bias (Mean Difference): {bias:.4f}\n"
+        f"Reproducibility Coefficient (RPC): {rpc:.4f}\n"
+        f"Coefficient of Variation (CV): {cv:.4f}\n"
+        f"\nICC Results:\n{icc_results}"
+    )
+
+    return table
+
+
+def uniform_statistics(method_gt, method_pd):
+    """
+    Calculate Pearson correlation coefficient, Bland-Altman statistics, and ICC between two methods.
+
+    Parameters:
+    - method_gt: Array-like, measurements from method A (ground truth).
+    - method_pd: Array-like, measurements from method B (new measurement system).
+
+    Returns:
+    - correlation_coefficient: Pearson correlation coefficient between the two methods.
+    - p_value: P-value for the Pearson correlation.
+    - bias: Mean difference between the methods.
+    - rpc: Reproducibility coefficient.
+    - cv: Coefficient of variation.
+    - icc_results: DataFrame with ICC results.
+    """
+
+    method_gt = np.array(method_gt)
+    method_pd = np.array(method_pd)
+
+    # Filter arrays for NaNs
+    method_gt, method_pd = remove_nan_positions(method_gt, method_pd)
+    
+    # absolute error
+    absolute_error = np.mean(np.abs(method_gt - method_pd))
+    # relative error
+    relative_error = np.mean(np.abs((method_gt - method_pd) / method_gt)) * 100
+
+    # Calculate RMSE
+    rmse = np.mean(np.sqrt(np.mean((method_gt - method_pd) ** 2)))
+    # relative RMSE
+    relative_rmse = (rmse / np.mean(method_gt))
+
+    mean_a = np.nanmean(method_gt)
+    mean_b = np.nanmean(method_pd)
+    std_a = np.nanstd(method_gt)
+    std_b = np.nanstd(method_pd)
+
+    # Calculate Pearson correlation coefficient and p-value
+    correlation_coefficient, p_value = pearsonr(method_gt, method_pd)
+
+    # Calculate Bland-Altman statistics
+    bias, rpc, cv = bland_altman_statistics(method_gt, method_pd)
+
+    # Calculate ICC
+    icc_results = icc_statistics(method_gt, method_pd)
+
+    # Create a formatted table
+    table = (
+        f"Mean GT: {mean_a:.4f}\n"
+        f"Mean PD: {mean_b:.4f}\n"
+        f"Std GT: {std_a:.4f}\n"
+        f"Std PD: {std_b:.4f}\n"
+        f"Absolute Error: {absolute_error:.4f}\n"
+        f"Relative Error: {relative_error:.4f}\n"
+        f"RMSE: {rmse:.4f}\n"
+        f"Relative RMSE: {relative_rmse:.4f}\n"
+        f"Correlation Coefficient: {correlation_coefficient:.4f}\n"
+        f"P-value: {p_value:.4f}\n"
+        f"Bias (Mean Difference): {bias:.4f}\n"
+        f"Reproducibility Coefficient (RPC): {rpc:.4f}\n"
+        f"Coefficient of Variation (CV): {cv:.4f}\n"
+        f"\nICC Results:\n{icc_results}"
+    )
+
+    return table
 
 
 def icc_statistics(method_a, method_b):
@@ -380,17 +596,11 @@ def get_gait_events_one_side(
         if not stride_duration_ok and facing_same_way:
             bad_GE_indices.append(i + 1)
 
-        # TODO: decide which kpt is best (heel or ankle or mix?)
         if stride_duration_ok and facing_same_way:
-            # take the spatial difference of [KEYPOINT] between current & next IC event
-            #
+            # take the spatial difference of heel keypoints between current & next IC event
             stride_length_heel = np.linalg.norm(heel[:, next_IC] - heel[:, current_IC])
-            stride_length_ankle = np.linalg.norm(ankle[:, next_IC] - ankle[:, current_IC])
-            # stride_length_toe = np.linalg.norm(big_toe[:, next_IC] - big_toe[:, current_IC])
+            stride_lengths.append(stride_length_heel)
 
-            # stride_lengths.append(np.array([stride_length_heel, stride_length_ankle, stride_length_toe]))
-            # stride_lengths.append(stride_length_heel)
-            stride_lengths.append(stride_length_ankle)
             stride_durations.append(stride_duration)
             direction.append(perspective[current_IC])
 
@@ -893,7 +1103,7 @@ def gait_analysis(
                 IC2_IC0_line = IC2_heel_position - IC0_heel_position
                 # line from contra IC heel to current ipsi IC heel
                 IC0_IC1_line = IC0_heel_position - IC1_heel_position
-
+                
                 base_of_support = np.linalg.norm(
                     np.cross(IC2_IC0_line, IC0_IC1_line)
                 ) / np.linalg.norm(IC2_IC0_line)
