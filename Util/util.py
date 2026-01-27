@@ -78,19 +78,19 @@ def remove_nan_positions(arr1:np.ndarray, arr2:np.ndarray)->tuple:
     
     return arr1_cleaned, arr2_cleaned
 
-def bland_altman_statistics(method_a, method_b, plot=False):
+def bland_altman_statistics(method_a:np.ndarray, method_b:np.ndarray, plot=False)->tuple:
     """
     Calculate Bland-Altman statistics and optionally plot the Bland-Altman plot.
 
-    Parameters:
-    - method_a: Array-like, measurements from method A.
-    - method_b: Array-like, measurements from method B.
-    - plot: Boolean, if True, plots the Bland-Altman plot.
+    Args:
+        method_a: Array-like, measurements from method A.
+        method_b: Array-like, measurements from method B.
+        plot: Boolean, if True, plots the Bland-Altman plot.
 
     Returns:
-    - bias: Mean difference between the methods.
-    - rpc: Reproducibility coefficient (1.96 * standard deviation of differences).
-    - cv: Coefficient of variation.
+        bias: Mean difference between the methods.
+        rpc: Reproducibility coefficient (1.96 * standard deviation of differences).
+        cv: Coefficient of variation.
     """
 
     # Calculating differences and means
@@ -101,8 +101,7 @@ def bland_altman_statistics(method_a, method_b, plot=False):
 
     # Bias (Mean Difference)
     bias = mean_difference
-
-    #TODO: find out why the 1.96 is hardcoded
+    
     # Reproducibility Coefficient (RPC)
     rpc = 1.96 * std_dev_difference
 
@@ -174,73 +173,15 @@ def uniform_statistics(method_gt, method_pd):
     # Calculate ICC
     icc_results = icc_statistics(method_gt, method_pd)
 
-    # Create a formatted table
-    table = (
-        f"Mean GT: {mean_a:.4f}\n"
-        f"Mean PD: {mean_b:.4f}\n"
-        f"Std GT: {std_a:.4f}\n"
-        f"Std PD: {std_b:.4f}\n"
-        f"Absolute Error: {absolute_error:.4f}\n"
-        f"Relative Error: {relative_error:.4f}\n"
-        f"RMSE: {rmse:.4f}\n"
-        f"Relative RMSE: {relative_rmse:.4f}\n"
-        f"Correlation Coefficient: {correlation_coefficient:.4f}\n"
-        f"P-value: {p_value:.4f}\n"
-        f"Bias (Mean Difference): {bias:.4f}\n"
-        f"Reproducibility Coefficient (RPC): {rpc:.4f}\n"
-        f"Coefficient of Variation (CV): {cv:.4f}\n"
-        f"\nICC Results:\n{icc_results}"
-    )
-
-    return table
-
-
-def uniform_statistics(method_gt, method_pd):
-    """
-    Calculate Pearson correlation coefficient, Bland-Altman statistics, and ICC between two methods.
-
-    Parameters:
-    - method_gt: Array-like, measurements from method A (ground truth).
-    - method_pd: Array-like, measurements from method B (new measurement system).
-
-    Returns:
-    - correlation_coefficient: Pearson correlation coefficient between the two methods.
-    - p_value: P-value for the Pearson correlation.
-    - bias: Mean difference between the methods.
-    - rpc: Reproducibility coefficient.
-    - cv: Coefficient of variation.
-    - icc_results: DataFrame with ICC results.
-    """
-
-    method_gt = np.array(method_gt)
-    method_pd = np.array(method_pd)
-
-    # Filter arrays for NaNs
-    method_gt, method_pd = remove_nan_positions(method_gt, method_pd)
-    
-    # absolute error
-    absolute_error = np.mean(np.abs(method_gt - method_pd))
-    # relative error
-    relative_error = np.mean(np.abs((method_gt - method_pd) / method_gt)) * 100
-
-    # Calculate RMSE
-    rmse = np.mean(np.sqrt(np.mean((method_gt - method_pd) ** 2)))
-    # relative RMSE
-    relative_rmse = (rmse / np.mean(method_gt))
-
-    mean_a = np.nanmean(method_gt)
-    mean_b = np.nanmean(method_pd)
-    std_a = np.nanstd(method_gt)
-    std_b = np.nanstd(method_pd)
-
-    # Calculate Pearson correlation coefficient and p-value
-    correlation_coefficient, p_value = pearsonr(method_gt, method_pd)
-
-    # Calculate Bland-Altman statistics
-    bias, rpc, cv = bland_altman_statistics(method_gt, method_pd)
-
-    # Calculate ICC
-    icc_results = icc_statistics(method_gt, method_pd)
+    # stat_results = {
+    #     "":,
+    #     "":,
+    #     "":,
+    #     "":,
+    #     "":,
+    #     "":,
+    #     "":,
+    # }
 
     # Create a formatted table
     table = (
@@ -263,16 +204,17 @@ def uniform_statistics(method_gt, method_pd):
     return table
 
 
-def icc_statistics(method_a, method_b):
+def icc_statistics(method_a:np.ndarray, method_b:np.ndarray)->pd.DataFrame:
     """
     Calculate Intraclass Correlation Coefficient (ICC) between two methods.
 
-    Parameters:
-    - method_a: Array-like, measurements from method A.
-    - method_b: Array-like, measurements from method B.
+    Args:
+        method_a: Array-like, measurements from method A.
+        method_b: Array-like, measurements from method B.
 
     Returns:
-    - icc_results: DataFrame with ICC results.
+        
+        icc_results: DataFrame with ICC results.
     """
 
     subjects = list(range(1, len(method_a) + 1))
@@ -315,7 +257,7 @@ def format_qualisys_export(input_filename: str, output_filename: str = None):
     elif output_filename == None:
         basename = get_basename(input_filename)
         directory = os.path.dirname(input_filename)
-        output_filename = os.path.join(directory, f"qualisys_{basename}.npz")
+        output_filename = os.path.join(directory, f"qualisys.npz")
 
     # read first 10 rows to get number of markers, frames, marker names...
     metadata = get_qualisys_metadata(input_filename)
@@ -413,7 +355,7 @@ def get_gait_events(
     Compute all gait-events (IC,FC) for both sides (left, right) of a given recording.
 
     Args:
-        data: interpolated and filtered keypoint data (keypoints x dims x frames)
+        keypoint_data: interpolated and filtered keypoint data (keypoints x dims x frames)
         kpt_labels: list of keypoint labels corresponding to data (left_ankle, nose, etc)
         gait_analysis_properties: dictionary of static parameters from gait_analysis_properties.json
         file_path: path to save debug figures
@@ -940,7 +882,7 @@ def filter_data(
     return filtered_data
 
 
-def get_frame_indices(gait_events: list, side: str, lower_bound: int, upper_bound: int) -> list:
+def get_frame_indices(gait_events: list, side: Literal["left", "right"], lower_bound: int, upper_bound: int, tolerance: int) -> list:
     """
     Return frame indices from gait_events with the given side from lower_bound to upper_bound frame index.
 
@@ -949,13 +891,14 @@ def get_frame_indices(gait_events: list, side: str, lower_bound: int, upper_boun
         side: 'left' or 'right'
         lower_bound: lower frame index
         upper_bound: upper frame index
+        tolerance: amount of time (in samples) with which to extend the search boundaries (both ways)
     Returns:
         list of gait events
     """
     return [
         event["frame"]
         for event in gait_events
-        if event["side"] == side and lower_bound < event["frame"] < upper_bound
+        if event["side"] == side and lower_bound-tolerance <= event["frame"] <= upper_bound+tolerance
     ]
 
 
@@ -992,7 +935,7 @@ def gait_analysis(
 ) -> dict:
 
     # static properties for calculations
-    fs = gait_analysis_properties["fps"]
+    fps = gait_analysis_properties["fps"]
     stride_min = gait_analysis_properties["stride_min"]
     stride_max = gait_analysis_properties["stride_max"]
 
@@ -1045,7 +988,7 @@ def gait_analysis(
         # check if event order is correct, filter false positives
         if same_foot_next_idx is not None:
             # stride time = time elapsed between heelstrikes of the same foot
-            stride_time = (ICs[same_foot_next_idx]["frame"] - IC["frame"]) / fs
+            stride_time = (ICs[same_foot_next_idx]["frame"] - IC["frame"]) / fps
 
             # stride time falls in realistic time range
             if stride_min <= stride_time <= stride_max:
@@ -1053,8 +996,10 @@ def gait_analysis(
                 IC0 = IC["frame"]
                 IC2 = ICs[same_foot_next_idx]["frame"]
 
+                tolerance = fps*0.1
+
                 # frame index of first contralateral heel strike (between current and next ipsilateral)
-                IC1 = get_frame_indices(ICs, contra, IC0, IC2)
+                IC1 = get_frame_indices(ICs, contra, IC0, IC2, tolerance=tolerance)
 
                 FC0, FC1 = None, None
 
@@ -1063,8 +1008,8 @@ def gait_analysis(
                     IC1 = IC1[0]
 
                     # see gait_events.png
-                    FC0 = get_frame_indices(FCs, contra, IC0, IC1)
-                    FC1 = get_frame_indices(FCs, ipsi, IC1, IC2)
+                    FC0 = get_frame_indices(FCs, contra, IC0, IC1, tolerance=tolerance)
+                    FC1 = get_frame_indices(FCs, ipsi, IC1, IC2, tolerance=tolerance)
 
                     FC0 = FC0[0] if FC0 else None
                     FC1 = FC1[0] if FC1 else None
@@ -1081,10 +1026,10 @@ def gait_analysis(
                 IC2_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :, IC2]
 
                 # step time [sec] = ipsi IC -> contra IC, IC1-IC0
-                step_time = (IC1 - IC0) / fs
+                step_time = (IC1 - IC0) / fps
 
                 # swing time [sec] = ipsi FC -> next ispi IC, IC2-FC1
-                swing_time = (IC2 - FC1) / fs
+                swing_time = (IC2 - FC1) / fps
 
                 # step length [m] = ipsi IC-> contra IC, IC1-IC0
                 step_length = np.linalg.norm(IC1_heel_position - IC0_heel_position)
@@ -1096,7 +1041,7 @@ def gait_analysis(
                 stride_velocity = stride_length / stride_time
 
                 # double support time [sec]= (ipsi IC-> contra FC) + (conrta IC->ispi FC), (FC0-IC0)+(FC1-IC1)
-                double_support_time = ((FC0 - IC0) + (FC1 - IC1)) / fs
+                double_support_time = ((FC0 - IC0) + (FC1 - IC1)) / fps
 
                 # base of support [m] = perpendicular distance from contra IC heel to 2 consecutive ipsi IC heel line
                 # line connecting consecutive ispi heel positions
