@@ -14,6 +14,8 @@
 *.ply
 *.png
 
+*_log.txt
+
 # pycache folders
 **/__pycache__/
 
@@ -21,4 +23,5 @@ results/*
 debug_figs/**
 debug_figs/*
 stereo_videos/*
+
 

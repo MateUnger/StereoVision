@@ -41,44 +41,52 @@ class Pattern:
         self.pattern_width = width
         self.square_size = float(square_size)  # in world coordinate system (m,mm,...)
         self.pattern_type = "chessboard"
-        self.pattern_size = (self.pattern_width, self.pattern_height)  # number of (inner) corners
+        self.pattern_size = (
+            self.pattern_width,
+            self.pattern_height,
+        )  # number of (inner) corners
 
         self.pattern_points = np.zeros((np.prod(self.pattern_size), 3), np.float32)
         self.pattern_points[:, :2] = np.indices(self.pattern_size).T.reshape(-1, 2)
         self.pattern_points *= square_size
 
 
-def remove_nan_positions(arr1:np.ndarray, arr2:np.ndarray)->tuple:
+def remove_nan_positions(arr1: np.ndarray, arr2: np.ndarray) -> tuple:
     """
-    Remove Nan elements from both input arrays (of equal length). 
+    Remove Nan elements from both input arrays (of equal length).
     Elements are only kepth if at position P both arrays have valid values.
-    
-    Args: 
+
+    Args:
         arr1: first input array
         arr2: second input array
-    
-    Returns: 
+
+    Returns:
         arr1_cleaned: arr1 containing elements where both arr1 and arr2 are valid (not Nan)
         arr2_cleaned: arr2 ....same as above
 
     """
     if arr1.shape != arr2.shape:
-        raise Exception(f"Input arrays must have the same shape. array_1: {arr1.shape}, array2: {arr2.shape}")
+        raise Exception(
+            f"Input arrays must have the same shape. array_1: {arr1.shape}, array2: {arr2.shape}"
+        )
 
     # Find positions of NaNs in both arrays
     nan_positions_arr1 = np.isnan(arr1)
     nan_positions_arr2 = np.isnan(arr2)
-    
+
     # Combine positions to find indices to remove
     nan_positions_combined = nan_positions_arr1 | nan_positions_arr2
-    
+
     # Filter out the NaN positions from both arrays
     arr1_cleaned = arr1[~nan_positions_combined]
     arr2_cleaned = arr2[~nan_positions_combined]
-    
+
     return arr1_cleaned, arr2_cleaned
 
-def bland_altman_statistics(method_a:np.ndarray, method_b:np.ndarray, plot=False)->tuple:
+
+def bland_altman_statistics(
+    method_a: np.ndarray, method_b: np.ndarray, plot=False
+) -> tuple:
     """
     Calculate Bland-Altman statistics and optionally plot the Bland-Altman plot.
 
@@ -101,7 +109,7 @@ def bland_altman_statistics(method_a:np.ndarray, method_b:np.ndarray, plot=False
 
     # Bias (Mean Difference)
     bias = mean_difference
-    
+
     # Reproducibility Coefficient (RPC)
     rpc = 1.96 * std_dev_difference
 
@@ -126,6 +134,7 @@ def bland_altman_statistics(method_a:np.ndarray, method_b:np.ndarray, plot=False
 
     return bias, rpc, cv
 
+
 def uniform_statistics(method_gt, method_pd):
     """
     Calculate Pearson correlation coefficient, Bland-Altman statistics, and ICC between two methods.
@@ -148,7 +157,7 @@ def uniform_statistics(method_gt, method_pd):
 
     # Filter arrays for NaNs
     method_gt, method_pd = remove_nan_positions(method_gt, method_pd)
-    
+
     # absolute error
     absolute_error = np.mean(np.abs(method_gt - method_pd))
     # relative error
@@ -157,7 +166,7 @@ def uniform_statistics(method_gt, method_pd):
     # Calculate RMSE
     rmse = np.mean(np.sqrt(np.mean((method_gt - method_pd) ** 2)))
     # relative RMSE
-    relative_rmse = (rmse / np.mean(method_gt))
+    relative_rmse = rmse / np.mean(method_gt)
 
     mean_a = np.nanmean(method_gt)
     mean_b = np.nanmean(method_pd)
@@ -204,7 +213,7 @@ def uniform_statistics(method_gt, method_pd):
     return table
 
 
-def icc_statistics(method_a:np.ndarray, method_b:np.ndarray)->pd.DataFrame:
+def icc_statistics(method_a: np.ndarray, method_b: np.ndarray) -> pd.DataFrame:
     """
     Calculate Intraclass Correlation Coefficient (ICC) between two methods.
 
@@ -213,7 +222,7 @@ def icc_statistics(method_a:np.ndarray, method_b:np.ndarray)->pd.DataFrame:
         method_b: Array-like, measurements from method B.
 
     Returns:
-        
+
         icc_results: DataFrame with ICC results.
     """
 
@@ -269,7 +278,9 @@ def format_qualisys_export(input_filename: str, output_filename: str = None):
     data = df.to_numpy()[1:, :92].T
 
     # # reshape the data to    markers x dims x frames
-    data = data.reshape(int(metadata["NO_OF_MARKERS"]), 4, int(metadata["NO_OF_FRAMES"]))
+    data = data.reshape(
+        int(metadata["NO_OF_MARKERS"]), 4, int(metadata["NO_OF_FRAMES"])
+    )
 
     # iterate over all keypoints
     for kpt_idx, keypoint in enumerate(data):
@@ -758,8 +769,12 @@ def get_turns_and_perspective(
 
         axs[0].plot(t[1:], shoulder_diff, label="shoulder diff")
         axs[0].plot(t, perspective, label="front, back")
-        axs[0].plot(left_ips / sampling_fr, width_heights, "o", label="turn start", markersize=4)
-        axs[0].plot(right_ips / sampling_fr, width_heights, "o", label="turn end", markersize=4)
+        axs[0].plot(
+            left_ips / sampling_fr, width_heights, "o", label="turn start", markersize=4
+        )
+        axs[0].plot(
+            right_ips / sampling_fr, width_heights, "o", label="turn end", markersize=4
+        )
         axs[0].plot(t, turn_mask, label="straight/turn")
 
         axs[1].plot(t, shoulder_L, label="left")
@@ -802,8 +817,12 @@ def interpolate_gaps(data: np.ndarray, fps: int, max_gap: float) -> np.ndarray:
 
             # Identify NaN segments
             diff = np.diff(nan_indices)
-            segment_starts = np.insert(nan_indices[np.where(diff > 1)[0] + 1], 0, nan_indices[0])
-            segment_ends = np.append(nan_indices[np.where(diff > 1)[0]], nan_indices[-1])
+            segment_starts = np.insert(
+                nan_indices[np.where(diff > 1)[0] + 1], 0, nan_indices[0]
+            )
+            segment_ends = np.append(
+                nan_indices[np.where(diff > 1)[0]], nan_indices[-1]
+            )
 
             # Interpolate gaps within the allowed size
             for start, end in zip(segment_starts, segment_ends):
@@ -814,7 +833,9 @@ def interpolate_gaps(data: np.ndarray, fps: int, max_gap: float) -> np.ndarray:
                     # fit cubic spline if there are enough points
                     if len(valid_indices) >= 2:
                         cs = CubicSpline(valid_indices, signal[valid_indices])
-                        filled_data[kpt, dim, start : end + 1] = cs(np.arange(start, end + 1))
+                        filled_data[kpt, dim, start : end + 1] = cs(
+                            np.arange(start, end + 1)
+                        )
 
                     # use linear interpolation if not enough valid points
                     else:
@@ -871,7 +892,9 @@ def filter_data(
             if np.any(nans):
                 valid_indices = ~nans
                 trajectory[nans] = np.interp(
-                    np.flatnonzero(nans), np.flatnonzero(valid_indices), trajectory[valid_indices]
+                    np.flatnonzero(nans),
+                    np.flatnonzero(valid_indices),
+                    trajectory[valid_indices],
                 )
 
             trajectory = filtfilt(b, a, trajectory)  # Apply filter
@@ -882,7 +905,13 @@ def filter_data(
     return filtered_data
 
 
-def get_frame_indices(gait_events: list, side: Literal["left", "right"], lower_bound: int, upper_bound: int, tolerance: int) -> list:
+def get_frame_indices(
+    gait_events: list,
+    side: Literal["left", "right"],
+    lower_bound: int,
+    upper_bound: int,
+    tolerance: int,
+) -> list:
     """
     Return frame indices from gait_events with the given side from lower_bound to upper_bound frame index.
 
@@ -898,7 +927,8 @@ def get_frame_indices(gait_events: list, side: Literal["left", "right"], lower_b
     return [
         event["frame"]
         for event in gait_events
-        if event["side"] == side and lower_bound-tolerance <= event["frame"] <= upper_bound+tolerance
+        if event["side"] == side
+        and lower_bound - tolerance <= event["frame"] <= upper_bound + tolerance
     ]
 
 
@@ -931,7 +961,11 @@ def compute_asymmetry(left_values, right_values):
 
 
 def gait_analysis(
-    keypoint_data: np.ndarray, gait_events: dict, kpt_labels: list, gait_analysis_properties: dict
+    keypoint_data: np.ndarray,
+    gait_events: dict,
+    kpt_labels: list,
+    gait_analysis_properties: dict,
+    debug_file_path: str = None,
 ) -> dict:
 
     # static properties for calculations
@@ -967,43 +1001,61 @@ def gait_analysis(
     ICs = gait_events["IC"]
     FCs = gait_events["FC"]
 
+    num_steps_used = 0
+
+    accepted_ICs = []
+    rejected_no_full_cycle = []
+    rejected_bad_stride_time = []
+    rejected_bad_perspective = []
+    rejected_missing_GEs = []
+
+    GE_log = []
+    GE_log.append(f"i, IC0, ipsi, perspective, IC0, FC0, IC1, FC1, IC2")
+
     # iterate Initial Contact gait events
     for i, IC in enumerate(ICs):
 
         # ipsilateral and contralateral sides for current gait event
         ipsi = IC["side"]
-        contra = "left" if IC["side"] == "right" else "right"
+        contra = "left" if ipsi == "right" else "right"
 
-        # perspective value ('straight'/'turn') or 'all' if missing
+        # frame idx of curernt IC
+        IC0 = IC["frame"]
+
+        # perspective value ('straight_front'/'straight_back') or 'all' if missing
         perspective = IC.get("perspective", "all")
 
         if perspective not in perspectives:
+            rejected_bad_perspective.append(IC0)
             continue
 
         # get the next ipsilateral event's global index (relative to the whole event list), return None otherwise
         same_foot_next_idx = next(
-            (j for j, event in enumerate(ICs[i + 1 :], start=i + 1) if event["side"] == ipsi), None
+            (
+                j
+                for j, event in enumerate(ICs[i + 1 :], start=i + 1)
+                if event["side"] == ipsi and event["perspective"] == perspective
+            ),
+            None,
         )
-
-        # check if event order is correct, filter false positives
+        # check if there is a next ispi IC (full gait cycle for current foot)
         if same_foot_next_idx is not None:
+
             # stride time = time elapsed between heelstrikes of the same foot
-            stride_time = (ICs[same_foot_next_idx]["frame"] - IC["frame"]) / fps
+            stride_time = (ICs[same_foot_next_idx]["frame"] - IC0) / fps
 
             # stride time falls in realistic time range
             if stride_min <= stride_time <= stride_max:
-                # frame index of current and next IC event (ipsilateral)
-                IC0 = IC["frame"]
+                # frame index of next IC event (ipsilateral)
                 IC2 = ICs[same_foot_next_idx]["frame"]
 
-                tolerance = fps*0.1
-
                 # frame index of first contralateral heel strike (between current and next ipsilateral)
+                tolerance = fps * 0.2
                 IC1 = get_frame_indices(ICs, contra, IC0, IC2, tolerance=tolerance)
 
                 FC0, FC1 = None, None
 
-                # if there's a next contra step
+                # if there's a next contralateral GE
                 if IC1:
                     IC1 = IC1[0]
 
@@ -1014,16 +1066,27 @@ def gait_analysis(
                     FC0 = FC0[0] if FC0 else None
                     FC1 = FC1[0] if FC1 else None
 
+                    # print(i, IC['frame'], ipsi, perspective, IC0, FC0, IC1, FC1, IC2)
+                    GE_log.append(
+                        f"{i}, {IC0}, {ipsi}, {perspective}, {IC0}, {FC0}, {IC1}, {FC1}, {IC2}"
+                    )
+
                 # if either of the values is None, skip cycle
                 if any(x is None for x in [IC0, IC1, IC2, FC0, FC1]):
-                    # print(i, IC['frame'], ipsi, perspective, IC0, FC0, IC1, FC1, IC2)
+                    rejected_missing_GEs.append(IC0)
                     continue
 
-                # TODO: fix this shit
-                # ------------------------------------------------------------------------------------------------------------------------------
-                IC0_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :, IC0]
-                IC1_heel_position = keypoint_data[kpt_labels.index(f"{contra}_heel"), :, IC1]
-                IC2_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :, IC2]
+                accepted_ICs.append(IC0)
+
+                IC0_heel_position = keypoint_data[
+                    kpt_labels.index(f"{ipsi}_heel"), :, IC0
+                ]
+                IC1_heel_position = keypoint_data[
+                    kpt_labels.index(f"{contra}_heel"), :, IC1
+                ]
+                IC2_heel_position = keypoint_data[
+                    kpt_labels.index(f"{ipsi}_heel"), :, IC2
+                ]
 
                 # step time [sec] = ipsi IC -> contra IC, IC1-IC0
                 step_time = (IC1 - IC0) / fps
@@ -1037,22 +1100,23 @@ def gait_analysis(
                 # stride lenght [m] = ipsi IC -> ipsi IC, IC2-IC0
                 stride_length = np.linalg.norm(IC2_heel_position - IC0_heel_position)
 
-                # stride velocity [m/s] = stide lenght / stride time
+                # stride velocity [m/s] = stride lenght / stride time
                 stride_velocity = stride_length / stride_time
 
                 # double support time [sec]= (ipsi IC-> contra FC) + (conrta IC->ispi FC), (FC0-IC0)+(FC1-IC1)
                 double_support_time = ((FC0 - IC0) + (FC1 - IC1)) / fps
 
-                # base of support [m] = perpendicular distance from contra IC heel to 2 consecutive ipsi IC heel line
+                # base of support [m] = see docs
+                # norm(np.cross(p2-p1, p1-p3))/norm(p2-p1)
                 # line connecting consecutive ispi heel positions
                 IC2_IC0_line = IC2_heel_position - IC0_heel_position
-                # line from contra IC heel to current ipsi IC heel
                 IC0_IC1_line = IC0_heel_position - IC1_heel_position
-                
+
                 base_of_support = np.linalg.norm(
                     np.cross(IC2_IC0_line, IC0_IC1_line)
                 ) / np.linalg.norm(IC2_IC0_line)
 
+                num_steps_used += 1
                 for pers in ["all", perspective]:
                     metrics[pers][ipsi]["step_time"].append(step_time)
                     metrics[pers][ipsi]["step_length"].append(step_length)
@@ -1060,18 +1124,93 @@ def gait_analysis(
                     metrics[pers][ipsi]["stride_length"].append(stride_length)
                     metrics[pers][ipsi]["stride_velocity"].append(stride_velocity)
                     metrics[pers][ipsi]["swing_time"].append(swing_time)
-                    metrics[pers][ipsi]["double_support_time"].append(double_support_time)
+                    metrics[pers][ipsi]["double_support_time"].append(
+                        double_support_time
+                    )
                     metrics[pers][ipsi]["base_of_support"].append(base_of_support)
+            else:
+                rejected_bad_stride_time.append(IC0)
 
+        else:
+            rejected_no_full_cycle.append(IC0)
     parameters = {}
     for perspective, data in metrics.items():
         parameters[perspective] = {
             metric: {
                 **get_mean_and_cv(data["left"][metric], data["right"][metric]),
-                "asymmetry": compute_asymmetry(data["left"][metric], data["right"][metric]),
+                "asymmetry": compute_asymmetry(
+                    data["left"][metric], data["right"][metric]
+                ),
             }
             for metric in data["left"]
         }
+
+    if debug_file_path != None:
+
+        debug_fig_file_path = f"{os.path.splitext(debug_file_path)[0]}_GE_analysis"
+        debug_log_file_path = f"{os.path.splitext(debug_file_path)[0]}_log.txt"
+
+        turn_mask, perspective = get_turns_and_perspective(
+            keypoint_data=keypoint_data,
+            kpt_labels=kpt_labels,
+            sampling_fr=fps,
+            min_peak_height=0.3,
+            min_walk_duration=2,
+        )
+        accepted_ICs = np.array(accepted_ICs)
+        rejected_no_full_cycle = np.array(rejected_no_full_cycle)
+        rejected_bad_stride_time = np.array(rejected_bad_stride_time)
+        rejected_bad_perspective = np.array(rejected_bad_perspective)
+        rejected_missing_GEs = np.array(rejected_missing_GEs)
+
+        t = np.linspace(0, keypoint_data.shape[2], keypoint_data.shape[2])
+
+        accepted_vis = np.zeros_like(t)
+        rejected_cycle_vis = np.zeros_like(t)
+        rejected_stride_vis = np.zeros_like(t)
+        rejected_perspective_vis = np.zeros_like(t)
+        rejected_missing_vis = np.zeros_like(t)
+
+        if rejected_no_full_cycle.shape != (0,):
+            rejected_cycle_vis[rejected_no_full_cycle] = 1
+        if rejected_bad_stride_time.shape != (0,):
+            rejected_stride_vis[rejected_bad_stride_time] = 1
+        if rejected_bad_perspective.shape != (0,):
+            rejected_perspective_vis[rejected_bad_perspective] = 1
+        if rejected_missing_GEs.shape != (0,):
+            rejected_missing_vis[rejected_missing_GEs] = 1
+        if accepted_ICs.shape != (0,):
+            accepted_vis[accepted_ICs] = 1
+
+        plt.close("all")
+        fig, axs = plt.subplots(2, 1, figsize=(14, 3))
+        axs[0].plot(t, rejected_missing_vis, "r", label="missing GEs")
+        axs[0].plot(t, rejected_stride_vis, "tab:pink", label="bad stride time")
+        axs[0].plot(t, rejected_cycle_vis, "tab:brown", label="no full cycle")
+        if rejected_bad_perspective.shape != (0,):
+            axs[0].plot(
+                t, rejected_perspective_vis, "tab:gray", label="wrong perspective"
+            )
+        axs[0].plot(t, accepted_vis, "b")
+        axs[0].plot(turn_mask, "k--", alpha=0.35, label="turn mask")
+        axs[1].plot(t, perspective, label="perspective")
+
+        axs[0].set_title("GEs used/rejected during analysis")
+        axs[0].legend()
+        axs[1].legend()
+        axs[1].set_yticks([0, 1], ["back", "front"])
+
+        plt.tight_layout()
+        plt.show()
+        plt.savefig(debug_fig_file_path)
+        # plt.close("all")
+        print(f"figure saved to: \n{debug_fig_file_path}")
+
+        with open(debug_log_file_path,"w") as f:
+            for line in GE_log:
+                f.write(line+"\n")
+    print(f"steps detected: {len(ICs)}")
+    print(f"steps analyzed: {len(accepted_ICs)}")
 
     return parameters
 
@@ -1116,8 +1255,12 @@ def display_results(parameters):
             )
     pd.options.display.float_format = "{:,.2f}".format
     df = pd.DataFrame(rows)
-    df["Parameter"] = pd.Categorical(df["Parameter"], categories=parameter_order, ordered=True)
-    df["Statistic"] = pd.Categorical(df["Statistic"], categories=statistic_order, ordered=True)
+    df["Parameter"] = pd.Categorical(
+        df["Parameter"], categories=parameter_order, ordered=True
+    )
+    df["Statistic"] = pd.Categorical(
+        df["Statistic"], categories=statistic_order, ordered=True
+    )
     df = df.sort_values(by=["Parameter", "Statistic"])
 
     table = df.pivot_table(
@@ -1170,7 +1313,9 @@ def filter_2d_keypoint(
             print("NaN values found in keypoint data. Replacing with mean.")
             # mean = np.nanmean(coords)
             coords[nan_indices] = np.interp(
-                np.flatnonzero(nan_indices), np.flatnonzero(valid_indices), coords[valid_indices]
+                np.flatnonzero(nan_indices),
+                np.flatnonzero(valid_indices),
+                coords[valid_indices],
             )
 
         # filtered x or y coords
@@ -1315,7 +1460,9 @@ def pose_to_bbox(keypoints: np.ndarray, expansion: float = 1.25) -> np.ndarray:
     ):
 
         # load the predefined solution (detection model, estimation model, backend...)
-        model = solution(mode=mode, to_openpose=to_openpose, backend=backend, device=device)
+        model = solution(
+            mode=mode, to_openpose=to_openpose, backend=backend, device=device
+        )
 
         try:
             self.det_model = model.det_model
