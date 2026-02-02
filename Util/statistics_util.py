@@ -89,13 +89,13 @@ def bland_altman_statistics(
     return bias, rpc, cv
 
 
-def uniform_statistics(method_gt, method_pd):
+def uniform_statistics(ground_truth_measurements, new_system_measurements):
     """
     Calculate Pearson correlation coefficient, Bland-Altman statistics, and ICC between two methods.
 
     Parameters:
-    - method_gt: Array-like, measurements from method A (ground truth).
-    - method_pd: Array-like, measurements from method B (new measurement system).
+    - ground_truth_measurement: Array-like, measurements from method A (ground truth).
+    - new_system_measurements:  Array-like, measurements from method B (new measurement system).
 
     Returns:
     - correlation_coefficient: Pearson correlation coefficient between the two methods.
@@ -106,65 +106,78 @@ def uniform_statistics(method_gt, method_pd):
     - icc_results: DataFrame with ICC results.
     """
 
-    method_gt = np.array(method_gt)
-    method_pd = np.array(method_pd)
+    ground_truth_data = np.array(ground_truth_measurements)
+    new_system_data = np.array(new_system_measurements)
 
     # Filter arrays for NaNs
-    method_gt, method_pd = remove_nan_positions(method_gt, method_pd)
-
-    # absolute error
-    absolute_error = np.mean(np.abs(method_gt - method_pd))
-    # relative error
-    relative_error = np.mean(np.abs((method_gt - method_pd) / method_gt)) * 100
-
-    # Calculate RMSE
-    rmse = np.mean(np.sqrt(np.mean((method_gt - method_pd) ** 2)))
-    # relative RMSE
-    relative_rmse = rmse / np.mean(method_gt)
-
-    mean_a = np.nanmean(method_gt)
-    mean_b = np.nanmean(method_pd)
-    std_a = np.nanstd(method_gt)
-    std_b = np.nanstd(method_pd)
-
-    # Calculate Pearson correlation coefficient and p-value
-    correlation_coefficient, p_value = pearsonr(method_gt, method_pd)
-
-    # Calculate Bland-Altman statistics
-    bias, rpc, cv = bland_altman_statistics(method_gt, method_pd)
-
-    # Calculate ICC
-    icc_results = icc_statistics(method_gt, method_pd)
-
-    # stat_results = {
-    #     "":,
-    #     "":,
-    #     "":,
-    #     "":,
-    #     "":,
-    #     "":,
-    #     "":,
-    # }
-
-    # Create a formatted table
-    table = (
-        f"Mean GT: {mean_a:.4f}\n"
-        f"Mean PD: {mean_b:.4f}\n"
-        f"Std GT: {std_a:.4f}\n"
-        f"Std PD: {std_b:.4f}\n"
-        f"Absolute Error: {absolute_error:.4f}\n"
-        f"Relative Error: {relative_error:.4f}\n"
-        f"RMSE: {rmse:.4f}\n"
-        f"Relative RMSE: {relative_rmse:.4f}\n"
-        f"Correlation Coefficient: {correlation_coefficient:.4f}\n"
-        f"P-value: {p_value:.4f}\n"
-        f"Bias (Mean Difference): {bias:.4f}\n"
-        f"Reproducibility Coefficient (RPC): {rpc:.4f}\n"
-        f"Coefficient of Variation (CV): {cv:.4f}\n"
-        f"\nICC Results:\n{icc_results}"
+    ground_truth_data, new_system_data = remove_nan_positions(
+        ground_truth_data, new_system_data
     )
 
-    return table
+    # absolute error
+    absolute_error = np.mean(np.abs(ground_truth_data - new_system_data))
+    # relative error
+    relative_error = (
+        np.mean(np.abs((ground_truth_data - new_system_data) / ground_truth_data)) * 100
+    )
+
+    # Calculate RMSE
+    rmse = np.mean(np.sqrt(np.mean((ground_truth_data - new_system_data) ** 2)))
+    # relative RMSE
+    relative_rmse = rmse / np.mean(ground_truth_data)
+
+    mean_gt = np.nanmean(ground_truth_data)
+    mean_ns = np.nanmean(new_system_data)
+    std_gt = np.nanstd(ground_truth_data)
+    std_ns = np.nanstd(new_system_data)
+
+    # Calculate Pearson correlation coefficient and p-value
+    correlation_coefficient, p_value = pearsonr(ground_truth_data, new_system_data)
+
+    # Calculate Bland-Altman statistics
+    bias, rpc, cv = bland_altman_statistics(ground_truth_data, new_system_data)
+
+    # Calculate ICC
+    icc_results = icc_statistics(ground_truth_data, new_system_data)
+    # get the ICC(3,1) result from the table
+    icc_3_1 = float(icc_results.loc[icc_results["Type"] == "ICC3"]["ICC"].iloc[0])
+
+    stat_results = {
+        "mean_gt": mean_gt,
+        "mean_ns": mean_ns,
+        "std_gt": std_gt,
+        "std_ns": std_ns,
+        "absolute_error": absolute_error,
+        "relative_error": relative_error,
+        "rmse": rmse,
+        "relative_rmse": relative_rmse,
+        "correlation_coefficient": correlation_coefficient,
+        "p_value": p_value,
+        "bias": bias,
+        "rcp": rpc,
+        "cv": cv,
+        "icc_3_1": icc_3_1,
+    }
+
+    # # Create a formatted table
+    # table = (
+    #     f"Mean GT: {mean_gt:.4f}\n"
+    #     f"Mean PD: {mean_pd:.4f}\n"
+    #     f"Std GT: {std_gt:.4f}\n"
+    #     f"Std PD: {std_pd:.4f}\n"
+    #     f"Absolute Error: {absolute_error:.4f}\n"
+    #     f"Relative Error: {relative_error:.4f}\n"
+    #     f"RMSE: {rmse:.4f}\n"
+    #     f"Relative RMSE: {relative_rmse:.4f}\n"
+    #     f"Correlation Coefficient: {correlation_coefficient:.4f}\n"
+    #     f"P-value: {p_value:.4f}\n"
+    #     f"Bias (Mean Difference): {bias:.4f}\n"
+    #     f"Reproducibility Coefficient (RPC): {rpc:.4f}\n"
+    #     f"Coefficient of Variation (CV): {cv:.4f}\n"
+    #     f"\nICC Results:\n{icc_results}"
+    # )
+
+    return stat_results
 
 
 def icc_statistics(method_a: np.ndarray, method_b: np.ndarray) -> pd.DataFrame:
@@ -198,6 +211,6 @@ def icc_statistics(method_a: np.ndarray, method_b: np.ndarray) -> pd.DataFrame:
     icc_results = pg.intraclass_corr(
         data=data, targets="Subject_ID", raters="Method", ratings="Measurement"
     )
+    ICC_3_1 = float(icc_results.loc[icc_results["Type"] == "ICC3"]["ICC"].iloc[0])
 
-    return icc_results
-
+    return ICC_3_1
