@@ -211,6 +211,5 @@ def icc_statistics(method_a: np.ndarray, method_b: np.ndarray) -> pd.DataFrame:
     icc_results = pg.intraclass_corr(
         data=data, targets="Subject_ID", raters="Method", ratings="Measurement"
     )
-    ICC_3_1 = float(icc_results.loc[icc_results["Type"] == "ICC3"]["ICC"].iloc[0])
 
-    return ICC_3_1
+    return icc_results

@@ -4,6 +4,7 @@ import pandas as pd
 import json
 import glob
 from Util.util import *
+from Util.gait_util import *
 
 # from tkinter import Tk
 from tkinter.filedialog import askopenfilename
@@ -87,7 +88,12 @@ class FrameViewer:
         self.ax.scatter(xs, ys, zs, c="b", s=40, label="Keypoints")
 
         self.ax.scatter(
-            3.09417443, 0.19429838, -(-1.11145841), marker="D", c="r", label="stereo camera"
+            3.09417443,
+            0.19429838,
+            -(-1.11145841),
+            marker="D",
+            c="r",
+            label="stereo camera",
         )
         self.ax.scatter(0, 0, 0, c="r", label="origin")
         # self.ax.scatter(0.75, 0, 0)
@@ -131,7 +137,9 @@ class FrameViewer:
             else:
                 marker_idx = self.kpt_labels.index("left_big_toe")
             color = "black" if perspective is np.False_ else "g"
-            label = f"FC ({side} toe{' - bad perspective' if perspective is False else ''})"
+            label = (
+                f"FC ({side} toe{' - bad perspective' if perspective is False else ''})"
+            )
             self.ax.scatter(
                 xs[marker_idx],
                 ys[marker_idx],

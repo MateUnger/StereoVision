@@ -7,7 +7,8 @@ from scipy.signal import butter, filtfilt, find_peaks, peak_widths
 import copy
 from typing import Literal
 
-#-----------------------------------------STEP DETECTION---------------------------------------------
+# -----------------------------------------STEP DETECTION---------------------------------------------
+
 
 def get_turns_and_perspective(
     keypoint_data: np.ndarray,
@@ -379,7 +380,9 @@ def get_gait_events(
     gait_events = {"IC": IC_events, "FC": FC_events}
     return gait_events
 
-#-----------------------------------------GAIT ANALYSIS---------------------------------------------
+
+# -----------------------------------------GAIT ANALYSIS---------------------------------------------
+
 
 def gait_analysis(
     keypoint_data: np.ndarray,
@@ -627,9 +630,9 @@ def gait_analysis(
         # plt.close("all")
         print(f"figure saved to: \n{debug_fig_file_path}")
 
-        with open(debug_log_file_path,"w") as f:
+        with open(debug_log_file_path, "w") as f:
             for line in GE_log:
-                f.write(line+"\n")
+                f.write(line + "\n")
     print(f"steps detected: {len(ICs)}")
     print(f"steps analyzed: {len(accepted_ICs)}")
 
