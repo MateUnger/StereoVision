@@ -496,7 +496,9 @@ def gait_analysis(
                     )
 
                 # if either of the values is None, skip cycle
-                if any(x is None for x in [IC0, IC1, IC2, FC0, FC1]):
+                if any(x is None for x in [IC0, IC1, IC2, FC0, FC1]) or not (
+                    IC0 <= FC0 and FC0 <= IC1 and IC1 <= FC1 and FC1 <= IC2
+                ):
                     rejected_missing_GEs.append(IC0)
                     continue
 
