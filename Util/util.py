@@ -756,3 +756,19 @@ def export_svo_avi(input_path: str, output_path: str = "default") -> int:
 
     zed.close()
     return 0
+
+
+class GaitEvent:
+    def __init__(
+        self,
+        type: Literal["IC", "FC"] = np.nan,
+        frame: int = np.nan,
+        side: Literal["left", "right"] = np.nan,
+    ):
+        self.type = type
+        self.frame = int(frame)
+        self.side = side
+
+    def print(self):
+        string = f"{self.type:<10} {self.frame:<10} {self.side:<10}"
+        print(string)
