@@ -756,3 +756,41 @@ def export_svo_avi(input_path: str, output_path: str = "default") -> int:
 
     zed.close()
     return 0
+
+
+def get_unit_vector(vector: np.ndarray):
+    """
+    Returns the unit vector of the input vector.
+
+    Args:
+        vector: input vector
+
+    Returns:
+        unit_vector: unit vector of magnitude 1 with the same direction as the input
+    """
+    return vector / np.linalg.norm(vector)
+
+
+def angle_between_vectors_deg(vector_1: np.ndarray, vector_2: np.ndarray):
+    """
+    Returns the angle in degrees between vectors 'vector_1' and 'vector_2'
+
+    Args:
+        vector_1: input vector
+        vector_2: other input vector
+    Returns:
+        angle: angle between the two input vectors in degrees.
+
+    """
+    # calculate unit vectors
+    vector_1_unit = get_unit_vector(vector_1)
+    vector_2_unit = get_unit_vector(vector_2)
+
+    # get scalar product
+    scalar_product = np.clip(np.dot(vector_1_unit, vector_2_unit), -1, 1)
+
+    # clip scalar product to [-1,1] range so trig. function works normal,
+    # use arccos to get the angle from scalar product
+    angle = np.degrees(np.arccos(scalar_product))
+
+    return angle
