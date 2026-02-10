@@ -19,6 +19,7 @@ def get_turns_and_perspective(
     min_walk_duration: float = 2,
     debug_fig_file_path: str = None,
 ) -> tuple:
+    # TODO: try getting turn mask based on depth coord
     """
     Identifies turning segments (straight/turning) and perspective (front / back) based on shoulder coordinates using peak detection method.
 

@@ -25,8 +25,8 @@ def remove_nan_positions(arr1: np.ndarray, arr2: np.ndarray) -> tuple:
         )
 
     # Find positions of NaNs in both arrays
-    nan_positions_arr1 = np.isnan(arr1)
-    nan_positions_arr2 = np.isnan(arr2)
+    nan_positions_arr1 = np.isnan(arr1).any()
+    nan_positions_arr2 = np.isnan(arr2).any()
 
     # Combine positions to find indices to remove
     nan_positions_combined = nan_positions_arr1 | nan_positions_arr2
