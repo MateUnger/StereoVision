@@ -811,3 +811,23 @@ def project_vector_on_plane(plane_normal_vector: np.ndarray, vector: np.ndarray)
     # multily vector with its scalar product (dot product w surface normal), shift it
     vector_projection = vector - np.dot(vector, normal_vector) * normal_vector
     return vector_projection
+
+
+def get_projection(plane_normal_vectors: np.ndarray, vector_array: np.ndarray):
+    """
+    Project each member of an array of vectors onto plane.
+
+    Args:
+        plane_normal_vector: vector orthogonal to the reference plane
+        vector_array: array of vectros to be projected. Usually a limb for 1 gait-cycle
+
+    Returns:
+        array of projected vectors
+    """
+
+    return np.array(
+        [
+            project_vector_on_plane(plane_normal, vector)
+            for plane_normal, vector in zip(plane_normal_vectors.T, vector_array.T)
+        ]
+    )

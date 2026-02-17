@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.signal import butter, filtfilt, find_peaks, peak_widths
-
+from Util.util import *
 import copy
 from typing import Literal
 
@@ -36,7 +36,7 @@ def get_turns_and_perspective(
 
         perspective: bollean array indicating frontal facing (1) and back facing (0) segments.
     """
-    # get the y coord of shoulders (for qualisys x-y plane is horizontal, y coord was forwards/backwards movement)
+    # get the y coord of shoulders (for qualisys x-y plane is horizontal, y coord (depth from camera) was forwards/backwards movement)
     shoulder_R = keypoint_data[kpt_labels.index("right_shoulder"), 1, :]
     shoulder_L = keypoint_data[kpt_labels.index("left_shoulder"), 1, :]
 
@@ -88,12 +88,8 @@ def get_turns_and_perspective(
 
         axs[0].plot(t[1:], shoulder_diff, label="shoulder diff")
         axs[0].plot(t, perspective, label="front, back")
-        axs[0].plot(
-            left_ips / sampling_fr, width_heights, "o", label="turn start", markersize=4
-        )
-        axs[0].plot(
-            right_ips / sampling_fr, width_heights, "o", label="turn end", markersize=4
-        )
+        axs[0].plot(left_ips / sampling_fr, width_heights, "o", label="turn start", markersize=4)
+        axs[0].plot(right_ips / sampling_fr, width_heights, "o", label="turn end", markersize=4)
         axs[0].plot(t, turn_mask, label="straight/turn")
 
         axs[1].plot(t, shoulder_L, label="left")
@@ -411,6 +407,8 @@ def gait_analysis(
             "swing_time",
             "double_support_time",
             "base_of_support",
+            "knee_rom",
+            "arm_rom",
         ]
     }
     # output data structure
@@ -436,6 +434,11 @@ def gait_analysis(
 
     GE_log = []
     GE_log.append(f"i, IC0, ipsi, perspective, IC0, FC0, IC1, FC1, IC2")
+
+    all_knee_angles = []
+    all_elbow_angles = []
+    all_shoulder_flex_angles_proj = []
+    all_shoulder_abd_angles_proj2 = []
 
     # iterate Initial Contact gait events
     for i, IC in enumerate(ICs):
@@ -505,15 +508,9 @@ def gait_analysis(
 
                 accepted_ICs.append(IC0)
 
-                IC0_heel_position = keypoint_data[
-                    kpt_labels.index(f"{ipsi}_heel"), :, IC0
-                ]
-                IC1_heel_position = keypoint_data[
-                    kpt_labels.index(f"{contra}_heel"), :, IC1
-                ]
-                IC2_heel_position = keypoint_data[
-                    kpt_labels.index(f"{ipsi}_heel"), :, IC2
-                ]
+                IC0_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :, IC0]
+                IC1_heel_position = keypoint_data[kpt_labels.index(f"{contra}_heel"), :, IC1]
+                IC2_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :, IC2]
 
                 # step time [sec] = ipsi IC -> contra IC, IC1-IC0
                 step_time = (IC1 - IC0) / fps
@@ -543,6 +540,85 @@ def gait_analysis(
                     np.cross(IC2_IC0_line, IC0_IC1_line)
                 ) / np.linalg.norm(IC2_IC0_line)
 
+                # keypoints for joint angle calculations
+                # lower body
+                hip_position = keypoint_data[kpt_labels.index(f"{ipsi}_hip"), :, IC0:IC2]
+                knee_position = keypoint_data[kpt_labels.index(f"{ipsi}_knee"), :, IC0:IC2]
+                ankle_position = keypoint_data[kpt_labels.index(f"{ipsi}_ankle"), :, IC0:IC2]
+                # upper body
+                mid_hip_position = keypoint_data[kpt_labels.index(f"mid_hip"), :, IC0:IC2]
+                left_hip = keypoint_data[kpt_labels.index(f"left_hip"), :, IC0:IC2]
+                right_hip = keypoint_data[kpt_labels.index(f"right_hip"), :, IC0:IC2]
+                sagittal_hip_normal = left_hip - right_hip
+                mid_shoulder_position = keypoint_data[kpt_labels.index(f"mid_shoulder"), :, IC0:IC2]
+                shoulder_position = keypoint_data[
+                    kpt_labels.index(f"{contra}_shoulder"), :, IC0:IC2
+                ]
+                elbow_position = keypoint_data[kpt_labels.index(f"{contra}_elbow"), :, IC0:IC2]
+                wrist_position = keypoint_data[kpt_labels.index(f"{contra}_wrist"), :, IC0:IC2]
+                left_shoulder = keypoint_data[kpt_labels.index(f"left_shoulder"), :, IC0:IC2]
+                right_shloulder = keypoint_data[kpt_labels.index(f"right_shoulder"), :, IC0:IC2]
+
+                # knee ROM
+                upper_leg_vector = knee_position - hip_position
+                lower_leg_vector = ankle_position - knee_position
+
+                # knee EXTENSION angle for all frames of the current gait-cycle, sagittal plane projection (upper and lower leg on sagittal plane defined by hip)
+
+                sagittal_lower_leg_proj = get_projection(sagittal_hip_normal, lower_leg_vector)
+                sagittal_upper_leg_proj = get_projection(sagittal_hip_normal, upper_leg_vector)
+                knee_angles = [
+                    angle_between_vectors(lower_proj, upper_proj)
+                    for lower_proj, upper_proj in zip(
+                        sagittal_lower_leg_proj, sagittal_upper_leg_proj
+                    )
+                ]
+                all_knee_angles.append(np.array(knee_angles))
+
+                # knee range of motion = max(knee angle) - min(knee angle) in given gait cycle
+                knee_rom = np.ptp(knee_angles)
+
+                # arm rom (elbow flexion, shoulder flexion, shoulder adduction)
+                upper_arm_vector = elbow_position - shoulder_position
+                lower_arm_vector = wrist_position - elbow_position
+                # transverse/horizontal plane normal
+                torso_vector = mid_hip_position - mid_shoulder_position
+                # sagittal/longitudinal plane normal
+                sagittal_normal = left_shoulder - right_shloulder
+                # coronal/frontal plane normal TODO: make sure this points in the same relative direction
+                coronal_normal = np.cross(sagittal_normal.T, torso_vector.T)
+
+                # elbow flexion angle w/o projection
+                elbow_angles = [
+                    angle_between_vectors(upper_arm, lower_arm)
+                    for upper_arm, lower_arm in zip(upper_arm_vector.T, lower_arm_vector.T)
+                ]
+                all_elbow_angles.append(np.array(elbow_angles))
+                elbow_felx_rom = np.ptp(elbow_angles)
+
+                # shoulder flexion/extension angle with projection (torso and upper arm on sagittal plane)
+                sagittal_upper_arm_proj = get_projection(sagittal_normal, upper_arm_vector)
+                sagittal_torso_proj = get_projection(sagittal_normal, torso_vector)
+                shoulder_flex_angles_proj = np.array(
+                    [
+                        angle_between_vectors(upper_arm_proj, torso_proj)
+                        for upper_arm_proj, torso_proj in zip(
+                            sagittal_upper_arm_proj, sagittal_torso_proj
+                        )
+                    ]
+                )
+                all_shoulder_flex_angles_proj.append(shoulder_flex_angles_proj)
+                shoulder_flex_rom = np.ptp(shoulder_flex_angles_proj)
+
+                # shoulder abduction/adduction angle with projection (torso and upper arm on coronal plane)
+                coronal_torso_proj = get_projection(coronal_normal.T, torso_vector)
+                coronal_arm_proj = get_projection(coronal_normal.T, upper_arm_vector)
+                shoulder_abd_angles_proj2 = [
+                    angle_between_vectors(torso_proj, upper_arm_proj)
+                    for torso_proj, upper_arm_proj in zip(coronal_torso_proj, coronal_arm_proj)
+                ]
+                all_shoulder_abd_angles_proj2.append(shoulder_abd_angles_proj2)
+
                 num_steps_used += 1
                 for pers in ["all", perspective]:
                     metrics[pers][ipsi]["step_time"].append(step_time)
@@ -551,10 +627,11 @@ def gait_analysis(
                     metrics[pers][ipsi]["stride_length"].append(stride_length)
                     metrics[pers][ipsi]["stride_velocity"].append(stride_velocity)
                     metrics[pers][ipsi]["swing_time"].append(swing_time)
-                    metrics[pers][ipsi]["double_support_time"].append(
-                        double_support_time
-                    )
+                    metrics[pers][ipsi]["double_support_time"].append(double_support_time)
                     metrics[pers][ipsi]["base_of_support"].append(base_of_support)
+                    metrics[pers][ipsi]["knee_rom"].append(knee_rom)
+                    metrics[pers][contra]["arm_rom"].append(shoulder_flex_rom)
+
             else:
                 rejected_bad_stride_time.append(IC0)
 
@@ -565,9 +642,7 @@ def gait_analysis(
         parameters[perspective] = {
             metric: {
                 **get_mean_and_cv(data["left"][metric], data["right"][metric]),
-                "asymmetry": compute_asymmetry(
-                    data["left"][metric], data["right"][metric]
-                ),
+                "asymmetry": compute_asymmetry(data["left"][metric], data["right"][metric]),
             }
             for metric in data["left"]
         }
@@ -576,7 +651,9 @@ def gait_analysis(
 
         debug_fig_file_path = f"{os.path.splitext(debug_file_path)[0]}_GE_analysis"
         debug_log_file_path = f"{os.path.splitext(debug_file_path)[0]}_log.txt"
-
+        debug_arm_rom_file_path = f"{os.path.splitext(debug_file_path)[0]}_arm_rom"
+        debug_knee_rom_file_path = f"{os.path.splitext(debug_file_path)[0]}_knee_rom"
+        # -----------------------------------------------------------------------------------GE_analysis plot-------------------------------------------------
         turn_mask, perspective = get_turns_and_perspective(
             keypoint_data=keypoint_data,
             kpt_labels=kpt_labels,
@@ -615,9 +692,7 @@ def gait_analysis(
         axs[0].plot(t, rejected_stride_vis, "tab:pink", label="bad stride time")
         axs[0].plot(t, rejected_cycle_vis, "tab:brown", label="no full cycle")
         if rejected_bad_perspective.shape != (0,):
-            axs[0].plot(
-                t, rejected_perspective_vis, "tab:gray", label="wrong perspective"
-            )
+            axs[0].plot(t, rejected_perspective_vis, "tab:gray", label="wrong perspective")
         axs[0].plot(t, accepted_vis, "b")
         axs[0].plot(turn_mask, "k--", alpha=0.35, label="turn mask")
         axs[1].plot(t, perspective, label="perspective")
@@ -632,10 +707,41 @@ def gait_analysis(
         plt.savefig(debug_fig_file_path)
         # plt.close("all")
         print(f"figure saved to: \n{debug_fig_file_path}")
+        # -----------------------------------------------------------------------------------arm_rom plot-------------------------------------------------
+
+        plt.close("all")
+        fig, axs = plt.subplots(1, 2, figsize=(14, 5))
+        for flex, abd in zip(all_shoulder_flex_angles_proj, all_shoulder_abd_angles_proj2):
+            axs[0].plot(flex)
+            axs[1].plot(abd)
+
+        axs[0].set_ylim([0, 40])
+        axs[1].set_ylim([0, 40])
+        axs[0].set_title("Flexion angle w projection")
+        axs[1].set_title("Abduction angle w 2 projection")
+        fig.suptitle("Shoulder joint angles")
+        plt.show()
+        plt.savefig(debug_arm_rom_file_path)
+        print(f"figure saved to: \n{debug_arm_rom_file_path}")
+        # -----------------------------------------------------------------------------------knee_rom plot-------------------------------------------------
+        plt.close("all")
+        fig, axs = plt.subplots(1, 1)
+        for extension in all_knee_angles:
+            axs.plot(extension)
+
+        axs.set_ylim([0, 70])
+        axs.set_title("Flexion angle w projection")
+
+        fig.suptitle("Knee flexion angle")
+        plt.show()
+        plt.savefig(debug_knee_rom_file_path)
+        print(f"figure saved to: \n{debug_knee_rom_file_path}")
+        # -----------------------------------------------------------------------------------log txt-------------------------------------------------
 
         with open(debug_log_file_path, "w") as f:
             for line in GE_log:
                 f.write(line + "\n")
+
     print(f"steps detected: {len(ICs)}")
     print(f"steps analyzed: {len(accepted_ICs)}")
 
@@ -707,6 +813,8 @@ def display_results(parameters):
         "swing_time",
         "double_support_time",
         "base_of_support",
+        "knee_rom",
+        "arm_rom",
     ]
     statistic_order = ["Mean [m]", "CV [%]", "Asymmetry [%]"]
 
@@ -737,12 +845,8 @@ def display_results(parameters):
             )
     pd.options.display.float_format = "{:,.2f}".format
     df = pd.DataFrame(rows)
-    df["Parameter"] = pd.Categorical(
-        df["Parameter"], categories=parameter_order, ordered=True
-    )
-    df["Statistic"] = pd.Categorical(
-        df["Statistic"], categories=statistic_order, ordered=True
-    )
+    df["Parameter"] = pd.Categorical(df["Parameter"], categories=parameter_order, ordered=True)
+    df["Statistic"] = pd.Categorical(df["Statistic"], categories=statistic_order, ordered=True)
     df = df.sort_values(by=["Parameter", "Statistic"])
 
     table = df.pivot_table(
