@@ -25,8 +25,8 @@ def remove_nan_positions(arr1: np.ndarray, arr2: np.ndarray) -> tuple:
         )
 
     # Find positions of NaNs in both arrays
-    nan_positions_arr1 = np.isnan(arr1).any()
-    nan_positions_arr2 = np.isnan(arr2).any()
+    nan_positions_arr1 = np.isnan(arr1)
+    nan_positions_arr2 = np.isnan(arr2)
 
     # Combine positions to find indices to remove
     nan_positions_combined = nan_positions_arr1 | nan_positions_arr2
@@ -38,9 +38,7 @@ def remove_nan_positions(arr1: np.ndarray, arr2: np.ndarray) -> tuple:
     return arr1_cleaned, arr2_cleaned
 
 
-def bland_altman_statistics(
-    method_a: np.ndarray, method_b: np.ndarray, plot=False
-) -> tuple:
+def bland_altman_statistics(method_a: np.ndarray, method_b: np.ndarray, plot=False) -> tuple:
     """
     Calculate Bland-Altman statistics and optionally plot the Bland-Altman plot.
 
@@ -108,11 +106,10 @@ def uniform_statistics(ground_truth_measurements, new_system_measurements):
 
     ground_truth_data = np.array(ground_truth_measurements)
     new_system_data = np.array(new_system_measurements)
+    print(ground_truth_data.shape, new_system_data.shape)
 
     # Filter arrays for NaNs
-    ground_truth_data, new_system_data = remove_nan_positions(
-        ground_truth_data, new_system_data
-    )
+    ground_truth_data, new_system_data = remove_nan_positions(ground_truth_data, new_system_data)
 
     # absolute error
     absolute_error = np.mean(np.abs(ground_truth_data - new_system_data))
@@ -131,9 +128,12 @@ def uniform_statistics(ground_truth_measurements, new_system_measurements):
     std_gt = np.nanstd(ground_truth_data)
     std_ns = np.nanstd(new_system_data)
 
-    # Calculate Pearson correlation coefficient and p-value
-    correlation_coefficient, p_value = pearsonr(ground_truth_data, new_system_data)
-
+    try:
+        # Calculate Pearson correlation coefficient and p-value
+        correlation_coefficient, p_value = pearsonr(ground_truth_data, new_system_data)
+    except Exception as e:
+        print(e)
+        print()
     # Calculate Bland-Altman statistics
     bias, rpc, cv = bland_altman_statistics(ground_truth_data, new_system_data)
 

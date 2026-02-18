@@ -709,7 +709,7 @@ def gait_analysis(
         print(f"figure saved to: \n{debug_fig_file_path}")
         # -----------------------------------------------------------------------------------arm_rom plot-------------------------------------------------
 
-        plt.close("all")
+        # plt.close("all")
         fig, axs = plt.subplots(1, 2, figsize=(14, 5))
         for flex, abd in zip(all_shoulder_flex_angles_proj, all_shoulder_abd_angles_proj2):
             axs[0].plot(flex)
@@ -724,7 +724,7 @@ def gait_analysis(
         plt.savefig(debug_arm_rom_file_path)
         print(f"figure saved to: \n{debug_arm_rom_file_path}")
         # -----------------------------------------------------------------------------------knee_rom plot-------------------------------------------------
-        plt.close("all")
+        # plt.close("all")
         fig, axs = plt.subplots(1, 1)
         for extension in all_knee_angles:
             axs.plot(extension)
