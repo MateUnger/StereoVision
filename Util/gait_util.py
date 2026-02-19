@@ -563,15 +563,10 @@ def gait_analysis(
                 upper_leg_vector = knee_position - hip_position
                 lower_leg_vector = ankle_position - knee_position
 
-                # knee EXTENSION angle for all frames of the current gait-cycle, sagittal plane projection (upper and lower leg on sagittal plane defined by hip)
-
-                sagittal_lower_leg_proj = get_projection(sagittal_hip_normal, lower_leg_vector)
-                sagittal_upper_leg_proj = get_projection(sagittal_hip_normal, upper_leg_vector)
+                # knee EXTENSION angle for all frames of the current gait-cycle, no projection
                 knee_angles = [
-                    angle_between_vectors(lower_proj, upper_proj)
-                    for lower_proj, upper_proj in zip(
-                        sagittal_lower_leg_proj, sagittal_upper_leg_proj
-                    )
+                    angle_between_vectors(lower_leg, upper_leg)
+                    for lower_leg, upper_leg in zip(lower_leg_vector.T, upper_leg_vector.T)
                 ]
                 all_knee_angles.append(np.array(knee_angles))
 
@@ -745,7 +740,7 @@ def gait_analysis(
     print(f"steps detected: {len(ICs)}")
     print(f"steps analyzed: {len(accepted_ICs)}")
 
-    return parameters
+    return parameters, metrics
 
 
 def get_frame_indices(

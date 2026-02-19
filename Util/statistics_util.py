@@ -106,22 +106,22 @@ def uniform_statistics(ground_truth_measurements, new_system_measurements):
 
     ground_truth_data = np.array(ground_truth_measurements)
     new_system_data = np.array(new_system_measurements)
-    print(ground_truth_data.shape, new_system_data.shape)
+    # print(ground_truth_data.shape, new_system_data.shape)
 
     # Filter arrays for NaNs
     ground_truth_data, new_system_data = remove_nan_positions(ground_truth_data, new_system_data)
 
     # absolute error
-    absolute_error = np.mean(np.abs(ground_truth_data - new_system_data))
+    absolute_error = np.nanmean(np.abs(ground_truth_data - new_system_data))
     # relative error
     relative_error = (
-        np.mean(np.abs((ground_truth_data - new_system_data) / ground_truth_data)) * 100
+        np.nanmean(np.abs((ground_truth_data - new_system_data) / ground_truth_data)) * 100
     )
 
     # Calculate RMSE
-    rmse = np.mean(np.sqrt(np.mean((ground_truth_data - new_system_data) ** 2)))
+    rmse = np.nanmean(np.sqrt(np.nanmean((ground_truth_data - new_system_data) ** 2)))
     # relative RMSE
-    relative_rmse = rmse / np.mean(ground_truth_data)
+    relative_rmse = rmse / np.nanmean(ground_truth_data)
 
     mean_gt = np.nanmean(ground_truth_data)
     mean_ns = np.nanmean(new_system_data)
@@ -133,7 +133,6 @@ def uniform_statistics(ground_truth_measurements, new_system_measurements):
         correlation_coefficient, p_value = pearsonr(ground_truth_data, new_system_data)
     except Exception as e:
         print(e)
-        print()
     # Calculate Bland-Altman statistics
     bias, rpc, cv = bland_altman_statistics(ground_truth_data, new_system_data)
 
