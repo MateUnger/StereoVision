@@ -663,6 +663,7 @@ def gait_analysis(
         rejected_bad_stride_time = np.array(rejected_bad_stride_time)
         rejected_bad_perspective = np.array(rejected_bad_perspective)
         rejected_missing_GEs = np.array(rejected_missing_GEs)
+        rejected_wrong_order = np.array(rejected_wrong_order)
 
         t = np.linspace(0, keypoint_data.shape[2], keypoint_data.shape[2])
 
@@ -671,6 +672,7 @@ def gait_analysis(
         rejected_stride_vis = np.zeros_like(t)
         rejected_perspective_vis = np.zeros_like(t)
         rejected_missing_vis = np.zeros_like(t)
+        rejected_wrong_order_vis = np.zeros_like(t)
 
         if rejected_no_next_ipsi_IC.shape != (0,):
             rejected_cycle_vis[rejected_no_next_ipsi_IC] = 1
@@ -680,16 +682,19 @@ def gait_analysis(
             rejected_perspective_vis[rejected_bad_perspective] = 1
         if rejected_missing_GEs.shape != (0,):
             rejected_missing_vis[rejected_missing_GEs] = 1
+        if rejected_wrong_order.shape != (0,):
+            rejected_wrong_order_vis[rejected_wrong_order] = 1
         if accepted_ICs.shape != (0,):
             accepted_vis[accepted_ICs] = 1
 
         plt.close("all")
         fig, axs = plt.subplots(2, 1, figsize=(14, 3))
         axs[0].plot(t, rejected_missing_vis, "r", label="missing GEs")
-        axs[0].plot(t, rejected_stride_vis, "tab:pink", label="bad stride time")
-        axs[0].plot(t, rejected_cycle_vis, "tab:brown", label="no full cycle")
+        axs[0].plot(t, rejected_stride_vis, "tab:pink", label="incorrect stride time")
+        axs[0].plot(t, rejected_cycle_vis, "tab:brown", label="missing end")
         if rejected_bad_perspective.shape != (0,):
             axs[0].plot(t, rejected_perspective_vis, "tab:gray", label="wrong perspective")
+        axs[0].plot(t, rejected_wrong_order_vis, "tab:orange", label="wrong order")
         axs[0].plot(t, accepted_vis, "b")
         axs[0].plot(turn_mask, "k--", alpha=0.35, label="turn mask")
         axs[1].plot(t, perspective, label="perspective")
