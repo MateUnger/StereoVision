@@ -427,10 +427,11 @@ def gait_analysis(
     num_steps_used = 0
 
     accepted_ICs = []
-    rejected_no_full_cycle = []
+    rejected_no_next_ipsi_IC = []
     rejected_bad_stride_time = []
     rejected_bad_perspective = []
     rejected_missing_GEs = []
+    rejected_wrong_order = []
 
     GE_log = []
     GE_log.append(f"i, IC0, ipsi, perspective, IC0, FC0, IC1, FC1, IC2")
@@ -450,7 +451,7 @@ def gait_analysis(
         # frame idx of curernt IC
         IC0 = IC["frame"]
 
-        # perspective value ('straight_front'/'straight_back') or 'all' if missing
+        # perspective value ('straight_front'/'straight_back') or 'all'
         perspective = IC.get("perspective", "all")
 
         if perspective not in perspectives:
@@ -474,12 +475,11 @@ def gait_analysis(
 
             # stride time falls in realistic time range
             if stride_min <= stride_time <= stride_max:
-                # frame index of next IC event (ipsilateral)
+                # frame index of next ipsi IC event
                 IC2 = ICs[same_foot_next_idx]["frame"]
 
                 # frame index of first contralateral heel strike (between current and next ipsilateral)
-                tolerance = fps * 0.2
-                IC1 = get_frame_indices(ICs, contra, IC0, IC2, tolerance=tolerance)
+                IC1 = get_frame_indices(ICs, contra, IC0, IC2)
 
                 FC0, FC1 = None, None
 
@@ -488,8 +488,8 @@ def gait_analysis(
                     IC1 = IC1[0]
 
                     # see gait_events.png
-                    FC0 = get_frame_indices(FCs, contra, IC0, IC1, tolerance=tolerance)
-                    FC1 = get_frame_indices(FCs, ipsi, IC1, IC2, tolerance=tolerance)
+                    FC0 = get_frame_indices(FCs, contra, IC0, IC1)
+                    FC1 = get_frame_indices(FCs, ipsi, IC1, IC2)
 
                     FC0 = FC0[0] if FC0 else None
                     FC1 = FC1[0] if FC1 else None
@@ -500,45 +500,47 @@ def gait_analysis(
                     )
 
                 # if either of the values is None, skip cycle
-                if any(x is None for x in [IC0, IC1, IC2, FC0, FC1]) or not (
-                    IC0 <= FC0 and FC0 <= IC1 and IC1 <= FC1 and FC1 <= IC2
-                ):
+                if any(x is None for x in [IC0, IC1, IC2, FC0, FC1]):
                     rejected_missing_GEs.append(IC0)
-                    continue
+                    # continue
+                elif not (IC0 <= FC0 and FC0 <= IC1 and IC1 <= FC1 and FC1 <= IC2):
+                    rejected_wrong_order.append(IC0)
 
                 accepted_ICs.append(IC0)
 
-                IC0_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :, IC0]
-                IC1_heel_position = keypoint_data[kpt_labels.index(f"{contra}_heel"), :, IC1]
-                IC2_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :, IC2]
+                if None not in [IC0, IC1, IC2, FC1]:
+                    IC0_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :, IC0]
+                    IC1_heel_position = keypoint_data[kpt_labels.index(f"{contra}_heel"), :, IC1]
+                    IC2_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :, IC2]
 
-                # step time [sec] = ipsi IC -> contra IC, IC1-IC0
-                step_time = (IC1 - IC0) / fps
+                    # step time [sec] = ipsi IC -> contra IC, IC1-IC0
+                    step_time = (IC1 - IC0) / fps
 
-                # swing time [sec] = ipsi FC -> next ispi IC, IC2-FC1
-                swing_time = (IC2 - FC1) / fps
+                    # swing time [sec] = ipsi FC -> next ispi IC, IC2-FC1
+                    swing_time = (IC2 - FC1) / fps
 
-                # step length [m] = ipsi IC-> contra IC, IC1-IC0
-                step_length = np.linalg.norm(IC1_heel_position - IC0_heel_position)
+                    # step length [m] = ipsi IC-> contra IC, IC1-IC0
+                    step_length = np.linalg.norm(IC1_heel_position - IC0_heel_position)
 
-                # stride lenght [m] = ipsi IC -> ipsi IC, IC2-IC0
-                stride_length = np.linalg.norm(IC2_heel_position - IC0_heel_position)
+                    # stride lenght [m] = ipsi IC -> ipsi IC, IC2-IC0
+                    stride_length = np.linalg.norm(IC2_heel_position - IC0_heel_position)
 
-                # stride velocity [m/s] = stride lenght / stride time
-                stride_velocity = stride_length / stride_time
+                    # stride velocity [m/s] = stride lenght / stride time
+                    stride_velocity = stride_length / stride_time
 
-                # double support time [sec]= (ipsi IC-> contra FC) + (conrta IC->ispi FC), (FC0-IC0)+(FC1-IC1)
-                double_support_time = ((FC0 - IC0) + (FC1 - IC1)) / fps
+                if None not in [FC0, FC1, IC0, IC1]:
+                    # double support time [sec]= (ipsi IC-> contra FC) + (conrta IC->ispi FC), (FC0-IC0)+(FC1-IC1)
+                    double_support_time = ((FC0 - IC0) + (FC1 - IC1)) / fps
 
-                # base of support [m] = see docs
-                # norm(np.cross(p2-p1, p1-p3))/norm(p2-p1)
-                # line connecting consecutive ispi heel positions
-                IC2_IC0_line = IC2_heel_position - IC0_heel_position
-                IC0_IC1_line = IC0_heel_position - IC1_heel_position
+                    # base of support [m] = see docs
+                    # norm(np.cross(p2-p1, p1-p3))/norm(p2-p1)
+                    # line connecting consecutive ispi heel positions
+                    IC2_IC0_line = IC2_heel_position - IC0_heel_position
+                    IC0_IC1_line = IC0_heel_position - IC1_heel_position
 
-                base_of_support = np.linalg.norm(
-                    np.cross(IC2_IC0_line, IC0_IC1_line)
-                ) / np.linalg.norm(IC2_IC0_line)
+                    base_of_support = np.linalg.norm(
+                        np.cross(IC2_IC0_line, IC0_IC1_line)
+                    ) / np.linalg.norm(IC2_IC0_line)
 
                 # keypoints for joint angle calculations
                 # lower body
@@ -631,7 +633,7 @@ def gait_analysis(
                 rejected_bad_stride_time.append(IC0)
 
         else:
-            rejected_no_full_cycle.append(IC0)
+            rejected_no_next_ipsi_IC.append(IC0)
     parameters = {}
     for perspective, data in metrics.items():
         parameters[perspective] = {
@@ -657,7 +659,7 @@ def gait_analysis(
             min_walk_duration=2,
         )
         accepted_ICs = np.array(accepted_ICs)
-        rejected_no_full_cycle = np.array(rejected_no_full_cycle)
+        rejected_no_next_ipsi_IC = np.array(rejected_no_next_ipsi_IC)
         rejected_bad_stride_time = np.array(rejected_bad_stride_time)
         rejected_bad_perspective = np.array(rejected_bad_perspective)
         rejected_missing_GEs = np.array(rejected_missing_GEs)
@@ -670,8 +672,8 @@ def gait_analysis(
         rejected_perspective_vis = np.zeros_like(t)
         rejected_missing_vis = np.zeros_like(t)
 
-        if rejected_no_full_cycle.shape != (0,):
-            rejected_cycle_vis[rejected_no_full_cycle] = 1
+        if rejected_no_next_ipsi_IC.shape != (0,):
+            rejected_cycle_vis[rejected_no_next_ipsi_IC] = 1
         if rejected_bad_stride_time.shape != (0,):
             rejected_stride_vis[rejected_bad_stride_time] = 1
         if rejected_bad_perspective.shape != (0,):
@@ -713,7 +715,7 @@ def gait_analysis(
         axs[0].set_ylim([0, 40])
         axs[1].set_ylim([0, 40])
         axs[0].set_title("Flexion angle w projection")
-        axs[1].set_title("Abduction angle w 2 projection")
+        axs[1].set_title("Abduction angle w projection")
         fig.suptitle("Shoulder joint angles")
         plt.show()
         plt.savefig(debug_arm_rom_file_path)
@@ -725,7 +727,7 @@ def gait_analysis(
             axs.plot(extension)
 
         axs.set_ylim([0, 70])
-        axs.set_title("Flexion angle w projection")
+        axs.set_title("Flexion angle w/o projection")
 
         fig.suptitle("Knee flexion angle")
         plt.show()
@@ -740,15 +742,11 @@ def gait_analysis(
     print(f"steps detected: {len(ICs)}")
     print(f"steps analyzed: {len(accepted_ICs)}")
 
-    return parameters, metrics
+    return parameters
 
 
 def get_frame_indices(
-    gait_events: list,
-    side: Literal["left", "right"],
-    lower_bound: int,
-    upper_bound: int,
-    tolerance: int,
+    gait_events: list, side: Literal["left", "right"], lower_bound: int, upper_bound: int
 ) -> list:
     """
     Return frame indices from gait_events with the given side from lower_bound to upper_bound frame index.
@@ -758,15 +756,13 @@ def get_frame_indices(
         side: 'left' or 'right'
         lower_bound: lower frame index
         upper_bound: upper frame index
-        tolerance: amount of time (in samples) with which to extend the search boundaries (both ways)
     Returns:
         list of gait events
     """
     return [
         event["frame"]
         for event in gait_events
-        if event["side"] == side
-        and lower_bound - tolerance <= event["frame"] <= upper_bound + tolerance
+        if event["side"] == side and lower_bound <= event["frame"] <= upper_bound
     ]
 
 
