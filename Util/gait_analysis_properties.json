@@ -1,26 +1,26 @@
 {
     "stereo": {
         "fps": 60,
-        "max_gap": 0.25,
+        "max_gap_interpolation": 0.25,
         "filter_cutoff": 2,
         "filter_order": 4,
         "heel_thr": 0.5,
         "toe_thr": 0.8,
-        "stride_min": 0.65,
-        "stride_max": 1.8,
-        "swing_min": 0.3,
-        "stance_min": 0.3
+        "stride_time_min": 0.65,
+        "stride_time_max": 1.8,
+        "swing_time_min": 0.3,
+        "stance_time_min": 0.3
     },
     "qualisys": {
         "fps": 100,
-        "max_gap": 0.25,
+        "max_gap_interpolation": 0.25,
         "filter_cutoff": 7,
         "filter_order": 4,
         "heel_thr": 0.5,
         "toe_thr": 0.8,
-        "stride_min": 0.65,
-        "stride_max": 1.8,
-        "swing_min": 0.3,
-        "stance_min": 0.3
+        "stride_time_min": 0.65,
+        "stride_time_max": 1.8,
+        "swing_time_min": 0.3,
+        "stance_time_min": 0.3
     }
 }
