@@ -53,9 +53,7 @@ def format_qualisys_export(input_filename: str, output_filename: str = None):
     data = df.to_numpy()[1:, :92].T
 
     # # reshape the data to    markers x dims x frames
-    data = data.reshape(
-        int(metadata["NO_OF_MARKERS"]), 4, int(metadata["NO_OF_FRAMES"])
-    )
+    data = data.reshape(int(metadata["NO_OF_MARKERS"]), 4, int(metadata["NO_OF_FRAMES"]))
 
     # iterate over all keypoints
     for kpt_idx, keypoint in enumerate(data):
@@ -144,12 +142,8 @@ def interpolate_gaps(data: np.ndarray, fps: int, max_gap: float) -> np.ndarray:
 
             # Identify NaN segments
             diff = np.diff(nan_indices)
-            segment_starts = np.insert(
-                nan_indices[np.where(diff > 1)[0] + 1], 0, nan_indices[0]
-            )
-            segment_ends = np.append(
-                nan_indices[np.where(diff > 1)[0]], nan_indices[-1]
-            )
+            segment_starts = np.insert(nan_indices[np.where(diff > 1)[0] + 1], 0, nan_indices[0])
+            segment_ends = np.append(nan_indices[np.where(diff > 1)[0]], nan_indices[-1])
 
             # Interpolate gaps within the allowed size
             for start, end in zip(segment_starts, segment_ends):
@@ -160,9 +154,7 @@ def interpolate_gaps(data: np.ndarray, fps: int, max_gap: float) -> np.ndarray:
                     # fit cubic spline if there are enough points
                     if len(valid_indices) >= 2:
                         cs = CubicSpline(valid_indices, signal[valid_indices])
-                        filled_data[kpt, dim, start : end + 1] = cs(
-                            np.arange(start, end + 1)
-                        )
+                        filled_data[kpt, dim, start : end + 1] = cs(np.arange(start, end + 1))
 
                     # use linear interpolation if not enough valid points
                     else:
@@ -444,9 +436,7 @@ def pose_to_bbox(keypoints: np.ndarray, expansion: float = 1.25) -> np.ndarray:
     ):
 
         # load the predefined solution (detection model, estimation model, backend...)
-        model = solution(
-            mode=mode, to_openpose=to_openpose, backend=backend, device=device
-        )
+        model = solution(mode=mode, to_openpose=to_openpose, backend=backend, device=device)
 
         try:
             self.det_model = model.det_model
@@ -758,17 +748,76 @@ def export_svo_avi(input_path: str, output_path: str = "default") -> int:
     return 0
 
 
-class GaitEvent:
-    def __init__(
-        self,
-        type: Literal["IC", "FC"] = np.nan,
-        frame: int = np.nan,
-        side: Literal["left", "right"] = np.nan,
-    ):
-        self.type = type
-        self.frame = int(frame)
-        self.side = side
+def normalize_vector(vector: np.ndarray):
+    """
+    Returns the unit vector of the input vector.
 
-    def print(self):
-        string = f"{self.type:<10} {self.frame:<10} {self.side:<10}"
-        print(string)
+    Args:
+        vector: input vector
+
+    Returns:
+        normalized_vector: unit vector of magnitude 1 with the same direction as the input
+    """
+    return vector / np.linalg.norm(vector)
+
+
+def angle_between_vectors(vector_1: np.ndarray, vector_2: np.ndarray):
+    """
+    Returns the angle in degrees between vectors 'vector_1' and 'vector_2'
+
+    Args:
+        vector_1: input vector
+        vector_2: other input vector
+    Returns:
+        angle: angle between the two input vectors in degrees.
+
+    """
+    # calculate unit vectors
+    vector_1_unit = normalize_vector(vector_1)
+    vector_2_unit = normalize_vector(vector_2)
+
+    # get scalar product
+    scalar_product = np.clip(np.dot(vector_1_unit, vector_2_unit), -1, 1)
+
+    # clip scalar product to [-1,1] range so trig. function works normal,
+    # use arccos to get the angle from scalar product
+    angle = np.degrees(np.arccos(scalar_product))
+
+    return angle
+
+
+def project_vector_on_plane(plane_normal_vector: np.ndarray, vector: np.ndarray):
+    """
+    Project an n-dimensional vector onto an n-dimensional plane defined by its normal (orthogonal) vector.
+
+    Args:
+        plane_normal_vector: vector orthogonal to the reference plane
+        vector: vector to be projected
+    Returns:
+        vector_projection: projection of the input vector onto reference plane
+    """
+    # normalize surface normal
+    normal_vector = plane_normal_vector / np.linalg.norm(plane_normal_vector)
+    # multily vector with its scalar product (dot product w surface normal), shift it
+    vector_projection = vector - np.dot(vector, normal_vector) * normal_vector
+    return vector_projection
+
+
+def get_projection(plane_normal_vectors: np.ndarray, vector_array: np.ndarray):
+    """
+    Project each member of an array of vectors onto plane.
+
+    Args:
+        plane_normal_vector: vector orthogonal to the reference plane
+        vector_array: array of vectros to be projected. Usually a limb for 1 gait-cycle
+
+    Returns:
+        array of projected vectors
+    """
+
+    return np.array(
+        [
+            project_vector_on_plane(plane_normal, vector)
+            for plane_normal, vector in zip(plane_normal_vectors.T, vector_array.T)
+        ]
+    )
