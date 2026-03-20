@@ -1,6 +1,6 @@
 {
     "stereo": {
-        "fps": 60,
+        "fps": 100,
         "max_gap_interpolation": 0.25,
         "filter_cutoff": 2,
         "filter_order": 4,
