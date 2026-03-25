@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 
 import csv
+import json
 import pandas as pd
 
 from scipy.signal import butter, filtfilt
@@ -77,7 +78,7 @@ def format_qualisys_export(input_filename: str, output_filename: str = None):
     # convert from milimeters to meters
     data = data / 1000
 
-    np.savez(output_filename, keypoints=data, kpt_labels=metadata["marker_names"])
+    np.savez(output_filename, keypoints=data, labels=metadata["marker_names"])
 
 
 def get_qualisys_metadata(filename: str) -> dict:
@@ -115,6 +116,30 @@ def get_qualisys_metadata(filename: str) -> dict:
 
 
 # -----------------------------------------INTERPOLATION & FILTERING---------------------------------------------
+def load_pose_model():
+
+    # load model info (config, input size, etc)
+    with open("./Util/2d_model/models.json") as f:
+        models = json.load(f)
+
+    device = "cuda"  # cpu, cuda, mps
+    backend = "onnxruntime"  # opencv, onnxruntime, openvino
+    detector_name = "YOLOX_nano"  # 'YOLOX_l_COCO','YOLOX_nano','YOLOX_tiny','YOLOX_s','YOLOX_m','YOLOX_l','YOLOX_x'
+    pose_name = "RTMPose_x"  # (26) 'RTMPose_t', 'RTMPose_s', 'RTMPose_m', 'RTMPose_l', 'RTMPose_m2', 'RTMPose_l2', 'RTMPose_x', (133) 'RTMW_l', 'RTMW_x'
+    labels = models["pose_models"]["26"]["kpt_labels"]
+
+    custom_model = Custom(
+        det_class="YOLOX",  #'RTMDet',
+        det=models["detectors"][detector_name]["path"],
+        det_input_size=models["detectors"][detector_name]["input_size"],
+        pose_class="RTMPose",
+        pose=models["pose_models"]["26"]["models"][pose_name]["path"],
+        pose_input_size=models["pose_models"]["26"]["models"][pose_name]["input_size"],
+        backend=backend,
+        device=device,
+    )
+
+    return custom_model
 
 
 def interpolate_gaps(data: np.ndarray, fps: int, max_gap: float) -> np.ndarray:
