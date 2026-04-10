@@ -78,7 +78,8 @@
                 "left_small_toe",
                 "right_small_toe",
                 "left_heel",
-                "right_heel"
+                "right_heel",
+                "mid_shoudler"
             ],
             "models": {
                 "RTMPose_t": {
