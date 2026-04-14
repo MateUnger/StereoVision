@@ -46,6 +46,7 @@ def format_qualisys_export(input_filename: str, output_filename: str = None):
 
     # read first 10 rows to get number of markers, frames, marker names...
     metadata = get_qualisys_metadata(input_filename)
+    labels = metadata["marker_names"]
 
     # Read the TSV file, skipping the first 10 rows (only metadata)
     df = pd.read_csv(input_filename, sep="\t", header=None, skiprows=11, dtype=None)
@@ -53,7 +54,7 @@ def format_qualisys_export(input_filename: str, output_filename: str = None):
     # Convert the DataFrame to a numpy array, transpose it (so it is (markers x dims) x frames)
     data = df.to_numpy()[1:, :92].T
 
-    # # reshape the data to    markers x dims x frames
+    # reshape the data to    markers x dims x frames
     data = data.reshape(int(metadata["NO_OF_MARKERS"]), 4, int(metadata["NO_OF_FRAMES"]))
 
     # iterate over all keypoints
@@ -78,7 +79,30 @@ def format_qualisys_export(input_filename: str, output_filename: str = None):
     # convert from milimeters to meters
     data = data / 1000
 
-    np.savez(output_filename, keypoints=data, labels=metadata["marker_names"])
+    # calculate mid_hip_front keypoint
+    left_hip_front = data[labels.index("left_hip_front"), :, :]
+    right_hip_front = data[labels.index("right_hip_front"), :, :]
+    mid_hip_front = np.mean((left_hip_front, right_hip_front), axis=0)
+
+    # calculate mid_hip_back keypoint
+    left_hip_back = data[labels.index("left_hip_back"), :, :]
+    right_hip_back = data[labels.index("right_hip_back"), :, :]
+    mid_hip_back = np.mean((left_hip_back, right_hip_back), axis=0)
+
+    # calculate mid_shoulder front keypoint
+    left_shoulder = data[labels.index("left_shoulder"), :]
+    right_shoulder = data[labels.index("right_shoulder"), :]
+    mid_shoulder = np.mean((left_shoulder, right_shoulder), axis=0)
+
+    # add new keypoints and labels to existing keypoints and labels
+    data = np.concatenate((data, mid_shoulder[np.newaxis, :, :]), axis=0)
+    data = np.concatenate((data, mid_hip_back[np.newaxis, :, :]), axis=0)
+    data = np.concatenate((data, mid_hip_front[np.newaxis, :, :]), axis=0)
+    labels.append("mid_shoulder")
+    labels.append("mid_hip_back")
+    labels.append("mid_hip_front")
+
+    np.savez(output_filename, keypoints=data, labels=labels)
 
 
 def get_qualisys_metadata(filename: str) -> dict:
