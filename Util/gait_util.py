@@ -87,12 +87,8 @@ def get_turns_and_perspective(
 
         axs[0].plot(t[1:], shoulder_diff, label="shoulder diff")
         axs[0].plot(t, perspective, label="front, back")
-        axs[0].plot(
-            left_ips / sampling_fr, width_heights, "o", label="turn start", markersize=4
-        )
-        axs[0].plot(
-            right_ips / sampling_fr, width_heights, "o", label="turn end", markersize=4
-        )
+        axs[0].plot(left_ips / sampling_fr, width_heights, "o", label="turn start", markersize=4)
+        axs[0].plot(right_ips / sampling_fr, width_heights, "o", label="turn end", markersize=4)
         axs[0].plot(t, turn_mask, label="straight/turn")
 
         axs[1].plot(t, shoulder_L, label="left")
@@ -502,15 +498,9 @@ def gait_analysis(
 
                 accepted_ICs.append(IC0)
 
-                IC0_heel_position = keypoint_data[
-                    kpt_labels.index(f"{ipsi}_heel"), :, IC0
-                ]
-                IC1_heel_position = keypoint_data[
-                    kpt_labels.index(f"{contra}_heel"), :, IC1
-                ]
-                IC2_heel_position = keypoint_data[
-                    kpt_labels.index(f"{ipsi}_heel"), :, IC2
-                ]
+                IC0_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :, IC0]
+                IC1_heel_position = keypoint_data[kpt_labels.index(f"{contra}_heel"), :, IC1]
+                IC2_heel_position = keypoint_data[kpt_labels.index(f"{ipsi}_heel"), :, IC2]
 
                 # step time [sec] = ipsi IC -> contra IC, IC1-IC0
                 step_time = (IC1 - IC0) / fps
@@ -548,9 +538,7 @@ def gait_analysis(
                     metrics[pers][ipsi]["stride_length"].append(stride_length)
                     metrics[pers][ipsi]["stride_velocity"].append(stride_velocity)
                     metrics[pers][ipsi]["swing_time"].append(swing_time)
-                    metrics[pers][ipsi]["double_support_time"].append(
-                        double_support_time
-                    )
+                    metrics[pers][ipsi]["double_support_time"].append(double_support_time)
                     metrics[pers][ipsi]["base_of_support"].append(base_of_support)
             else:
                 rejected_bad_stride_time.append(IC0)
@@ -562,9 +550,7 @@ def gait_analysis(
         parameters[perspective] = {
             metric: {
                 **get_mean_and_cv(data["left"][metric], data["right"][metric]),
-                "asymmetry": compute_asymmetry(
-                    data["left"][metric], data["right"][metric]
-                ),
+                "asymmetry": compute_asymmetry(data["left"][metric], data["right"][metric]),
             }
             for metric in data["left"]
         }
@@ -612,9 +598,7 @@ def gait_analysis(
         axs[0].plot(t, rejected_stride_vis, "tab:pink", label="bad stride time")
         axs[0].plot(t, rejected_cycle_vis, "tab:brown", label="no full cycle")
         if rejected_bad_perspective.shape != (0,):
-            axs[0].plot(
-                t, rejected_perspective_vis, "tab:gray", label="wrong perspective"
-            )
+            axs[0].plot(t, rejected_perspective_vis, "tab:gray", label="wrong perspective")
         axs[0].plot(t, accepted_vis, "b")
         axs[0].plot(turn_mask, "k--", alpha=0.35, label="turn mask")
         axs[1].plot(t, perspective, label="perspective")
@@ -683,15 +667,25 @@ def get_mean_and_cv(left_values: np.ndarray, right_values: np.ndarray):
     return {"mean": mean, "CV": cv}
 
 
-def compute_asymmetry(left_values, right_values):
+def compute_asymmetry(left_values: np.ndarray, right_values: np.ndarray) -> float:
     """
-    Calculates asymmetry between left and right sides
+    Calculate the asymmetry between means of left and right sides for a given set of values.
+
+    Args:
+        left_values: 1D array of values of the left side
+        right_values: 1D array of values of the right side
+
+    Returns:
+        Percentile difference between smaller and larger means.
+        If either of the input arrays are all nans or the larger mean is not positive returns np.nan
     """
-    left, right = map(lambda x: np.array(x)[~np.isnan(x)], [left_values, right_values])
-    if len(left) == 0 or len(right) == 0:
-        return np.nan
-    larger, smaller = max(left.mean(), right.mean()), min(left.mean(), right.mean())
-    return 100 * (1 - smaller / larger) if larger > 0 else np.nan
+    if not (np.isnan(left_values).all() or np.isnan(right_values).all()):
+        left_mean = np.nanmean(left_values)
+        right_mean = np.nanmean(right_values)
+        smaller = np.nanmin([left_mean, right_mean])
+        larger = np.nanmax([left_mean, right_mean])
+        return 100 * (1 - smaller / larger) if larger > 0 else np.nan
+    return np.nan
 
 
 def display_results(parameters):
@@ -734,12 +728,8 @@ def display_results(parameters):
             )
     pd.options.display.float_format = "{:,.2f}".format
     df = pd.DataFrame(rows)
-    df["Parameter"] = pd.Categorical(
-        df["Parameter"], categories=parameter_order, ordered=True
-    )
-    df["Statistic"] = pd.Categorical(
-        df["Statistic"], categories=statistic_order, ordered=True
-    )
+    df["Parameter"] = pd.Categorical(df["Parameter"], categories=parameter_order, ordered=True)
+    df["Statistic"] = pd.Categorical(df["Statistic"], categories=statistic_order, ordered=True)
     df = df.sort_values(by=["Parameter", "Statistic"])
 
     table = df.pivot_table(
