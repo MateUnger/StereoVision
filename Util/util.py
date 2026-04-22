@@ -141,6 +141,9 @@ def get_qualisys_metadata(filename: str) -> dict:
 
 # -----------------------------------------INTERPOLATION & FILTERING---------------------------------------------
 def load_pose_model():
+    """
+    Load and configure 2D pose estimation model with preset settings.
+    """
 
     # load model info (config, input size, etc)
     with open("./Util/2d_model/models.json") as f:
