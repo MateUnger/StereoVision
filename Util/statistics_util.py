@@ -38,9 +38,7 @@ def remove_nan_positions(arr1: np.ndarray, arr2: np.ndarray) -> tuple:
     return arr1_cleaned, arr2_cleaned
 
 
-def bland_altman_statistics(
-    method_a: np.ndarray, method_b: np.ndarray, plot=False
-) -> tuple:
+def bland_altman_statistics(method_a: np.ndarray, method_b: np.ndarray, plot=False) -> tuple:
     """
     Calculate Bland-Altman statistics and optionally plot the Bland-Altman plot.
 
@@ -110,9 +108,7 @@ def uniform_statistics(ground_truth_measurements, new_system_measurements):
     new_system_data = np.array(new_system_measurements)
 
     # Filter arrays for NaNs
-    ground_truth_data, new_system_data = remove_nan_positions(
-        ground_truth_data, new_system_data
-    )
+    ground_truth_data, new_system_data = remove_nan_positions(ground_truth_data, new_system_data)
 
     # absolute error
     absolute_error = np.mean(np.abs(ground_truth_data - new_system_data))
@@ -158,24 +154,6 @@ def uniform_statistics(ground_truth_measurements, new_system_measurements):
         "cv": cv,
         "icc_3_1": icc_3_1,
     }
-
-    # # Create a formatted table
-    # table = (
-    #     f"Mean GT: {mean_gt:.4f}\n"
-    #     f"Mean PD: {mean_pd:.4f}\n"
-    #     f"Std GT: {std_gt:.4f}\n"
-    #     f"Std PD: {std_pd:.4f}\n"
-    #     f"Absolute Error: {absolute_error:.4f}\n"
-    #     f"Relative Error: {relative_error:.4f}\n"
-    #     f"RMSE: {rmse:.4f}\n"
-    #     f"Relative RMSE: {relative_rmse:.4f}\n"
-    #     f"Correlation Coefficient: {correlation_coefficient:.4f}\n"
-    #     f"P-value: {p_value:.4f}\n"
-    #     f"Bias (Mean Difference): {bias:.4f}\n"
-    #     f"Reproducibility Coefficient (RPC): {rpc:.4f}\n"
-    #     f"Coefficient of Variation (CV): {cv:.4f}\n"
-    #     f"\nICC Results:\n{icc_results}"
-    # )
 
     return stat_results
 
