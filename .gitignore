@@ -13,6 +13,7 @@
 *.npz
 *.ply
 *.png
+*.tsv
 
 *_log.txt
 
@@ -23,5 +24,7 @@ results/*
 debug_figs/**
 debug_figs/*
 stereo_videos/*
+validation_test/*
+filter_test_data/*
 
 

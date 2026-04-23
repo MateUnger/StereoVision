@@ -24,21 +24,25 @@ rtmlib_module = importlib.import_module("rtmlib")
 # -----------------------------------------QUALISYS PREPROCESSING---------------------------------------------
 
 
-def format_qualisys_export(input_filename: str, output_filename: str = None):
+def format_qualisys_export(
+    input_filename: str, output_filename: str = None
+) -> tuple[np.ndarray, list]:
     # TODO: add logging, maybe return value
     """
     Read qualisys export file in .tsv format, format contents to fit multidimensional np.array,
-    delete gap-filled entries and convert measurements from milimeter to meter. Save resulting output.
+    delete gap-filled entries and convert measurements from milimeter to meter.
 
     Args:
         input_filename: path to input file (.tsv)
         output_filename: optional, path to save the result as a .npz file. Default is the input_filename directory.
 
     Returns:
-        None
+        keypoints: np.array of keypoint data
+        labels: keypoint labels as list
     """
     if not os.path.exists(input_filename):
-        print(f"file {input_filename} does not exits")
+        raise FileNotFoundError(f"File {input_filename} does not exits")
+
     elif output_filename == None:
         basename = get_basename(input_filename)
         directory = os.path.dirname(input_filename)
@@ -52,13 +56,13 @@ def format_qualisys_export(input_filename: str, output_filename: str = None):
     df = pd.read_csv(input_filename, sep="\t", header=None, skiprows=11, dtype=None)
 
     # Convert the DataFrame to a numpy array, transpose it (so it is (markers x dims) x frames)
-    data = df.to_numpy()[1:, :92].T
+    keypoints = df.to_numpy()[1:, :92].T
 
     # reshape the data to    markers x dims x frames
-    data = data.reshape(int(metadata["NO_OF_MARKERS"]), 4, int(metadata["NO_OF_FRAMES"]))
+    keypoints = keypoints.reshape(int(metadata["NO_OF_MARKERS"]), 4, int(metadata["NO_OF_FRAMES"]))
 
     # iterate over all keypoints
-    for kpt_idx, keypoint in enumerate(data):
+    for kpt_idx, keypoint in enumerate(keypoints):
         # get the type of measurement for all frames of a given keypoint
         measurement_types = keypoint[3, :]
         # iterate over all dims (x,y,z,type) of a keypoint
@@ -66,7 +70,7 @@ def format_qualisys_export(input_filename: str, output_filename: str = None):
 
             # replace coordinates with nan when it is gap-filled by qualisys, convert coords to float
             if dim_idx <= 2:
-                data[kpt_idx, dim_idx, :] = np.where(
+                keypoints[kpt_idx, dim_idx, :] = np.where(
                     measurement_types == "Measured", dim, "Nan"
                 ).astype(float)
 
@@ -74,35 +78,36 @@ def format_qualisys_export(input_filename: str, output_filename: str = None):
             elif dim_idx == 3:
                 pass
     # remove dim 3 (type of measurement)
-    data = data[:, :3, :].astype(float)
+    keypoints = keypoints[:, :3, :].astype(float)
 
     # convert from milimeters to meters
-    data = data / 1000
+    keypoints = keypoints / 1000
 
     # calculate mid_hip_front keypoint
-    left_hip_front = data[labels.index("left_hip_front"), :, :]
-    right_hip_front = data[labels.index("right_hip_front"), :, :]
+    left_hip_front = keypoints[labels.index("left_hip_front"), :, :]
+    right_hip_front = keypoints[labels.index("right_hip_front"), :, :]
     mid_hip_front = np.mean((left_hip_front, right_hip_front), axis=0)
 
     # calculate mid_hip_back keypoint
-    left_hip_back = data[labels.index("left_hip_back"), :, :]
-    right_hip_back = data[labels.index("right_hip_back"), :, :]
+    left_hip_back = keypoints[labels.index("left_hip_back"), :, :]
+    right_hip_back = keypoints[labels.index("right_hip_back"), :, :]
     mid_hip_back = np.mean((left_hip_back, right_hip_back), axis=0)
 
     # calculate mid_shoulder front keypoint
-    left_shoulder = data[labels.index("left_shoulder"), :]
-    right_shoulder = data[labels.index("right_shoulder"), :]
+    left_shoulder = keypoints[labels.index("left_shoulder"), :]
+    right_shoulder = keypoints[labels.index("right_shoulder"), :]
     mid_shoulder = np.mean((left_shoulder, right_shoulder), axis=0)
 
     # add new keypoints and labels to existing keypoints and labels
-    data = np.concatenate((data, mid_shoulder[np.newaxis, :, :]), axis=0)
-    data = np.concatenate((data, mid_hip_back[np.newaxis, :, :]), axis=0)
-    data = np.concatenate((data, mid_hip_front[np.newaxis, :, :]), axis=0)
+    keypoints = np.concatenate((keypoints, mid_shoulder[np.newaxis, :, :]), axis=0)
+    keypoints = np.concatenate((keypoints, mid_hip_back[np.newaxis, :, :]), axis=0)
+    keypoints = np.concatenate((keypoints, mid_hip_front[np.newaxis, :, :]), axis=0)
     labels.append("mid_shoulder")
     labels.append("mid_hip_back")
     labels.append("mid_hip_front")
 
-    np.savez(output_filename, keypoints=data, labels=labels)
+    # np.savez(output_filename, keypoints=keypoints, labels=labels)
+    return keypoints, labels
 
 
 def get_qualisys_metadata(filename: str) -> dict:
@@ -873,3 +878,25 @@ def get_projection(plane_normal_vectors: np.ndarray, vector_array: np.ndarray):
             for plane_normal, vector in zip(plane_normal_vectors.T, vector_array.T)
         ]
     )
+
+
+def load_keypoints_and_labels(npz_data_path: str) -> tuple[np.ndarray, list]:
+    """
+    Load keypoint and label data from .npz file
+    File has to have keys: "keypoints", "labels"
+
+    Args:
+        npz_data_path: path to the .npz file
+
+    Returns:
+        keypoints: loaded keypoint data as np.array
+        labels: loaded labels as list
+    """
+    if os.path.exists(npz_data_path):
+        loaded_data = np.load(npz_data_path)
+        keypoints = loaded_data["keypoints"]
+        labels = loaded_data["labels"].tolist()
+        print(f"loaded data from: {npz_data_path} with keys: {[key for key in loaded_data.keys()]}")
+    else:
+        raise FileNotFoundError(f"File: {npz_data_path} does not exist!")
+    return keypoints, labels
