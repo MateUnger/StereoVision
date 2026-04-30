@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from numpy.fft import fft, ifft
 from scipy import signal as sp_signal
 
+import pyzed.sl as sl
 import copy
 from typing import Literal
 
