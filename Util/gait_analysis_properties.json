@@ -7,7 +7,7 @@
         "heel_thr": 0.9,
         "toe_thr": 0.8,
         "stride_time_min": 0.65,
-        "stride_time_max": 1.8,
+        "stride_time_max": 2.5,
         "swing_time_min": 0.3,
         "stance_time_min": 0.3
     },
@@ -19,7 +19,7 @@
         "heel_thr": 0.9,
         "toe_thr": 0.8,
         "stride_time_min": 0.65,
-        "stride_time_max": 1.8,
+        "stride_time_max": 2.5,
         "swing_time_min": 0.3,
         "stance_time_min": 0.3
     }
