@@ -819,7 +819,7 @@ def normalize_vector(vector: np.ndarray):
     return vector / np.linalg.norm(vector)
 
 
-def angle_between_vectors(vector_1: np.ndarray, vector_2: np.ndarray):
+def angle_between_vectors(vector_1: np.ndarray, vector_2: np.ndarray) -> float:
     """
     Returns the angle in degrees between vectors 'vector_1' and 'vector_2'
 
