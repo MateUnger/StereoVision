@@ -7,7 +7,7 @@ import csv
 import json
 import pandas as pd
 
-from scipy.signal import butter, filtfilt
+from scipy.signal import butter, filtfilt, find_peaks
 from scipy.interpolate import CubicSpline
 import matplotlib.pyplot as plt
 from numpy.fft import fft, ifft
@@ -901,3 +901,25 @@ def load_keypoints_and_labels(npz_data_path: str) -> tuple[np.ndarray, list]:
     else:
         raise FileNotFoundError(f"File: {npz_data_path} does not exist!")
     return keypoints, labels
+
+
+def correct_flip(angles: np.ndarray):
+    angles = np.array(angles)
+    if angles.size > 0:
+        len = angles.size
+
+        n = 2
+        diff = np.diff(angles, n=n, prepend=angles[:n])
+        diff[:n] = diff[n : n + n]
+
+        if np.where(angles == 0):
+            peaks, _ = find_peaks(x=diff, height=0.2)
+
+        for peak in peaks:
+            peak = peak.astype(int)
+            if peak < len * 0.7:
+                angles[:peak] = angles[:peak] * (-1)
+            if peak > len * 0.75:
+                angles[peak:] = angles[peak:] * (-1)
+
+        return angles, diff, peaks
