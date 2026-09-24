@@ -120,7 +120,7 @@ def uniform_statistics(ground_truth_measurements, new_system_measurements):
     # Calculate RMSE
     rmse = np.mean(np.sqrt(np.mean((ground_truth_data - new_system_data) ** 2)))
     # relative RMSE
-    relative_rmse = rmse / np.mean(ground_truth_data)
+    relative_rmse = (rmse / np.mean(ground_truth_data)) *100
 
     mean_gt = np.nanmean(ground_truth_data)
     mean_ns = np.nanmean(new_system_data)

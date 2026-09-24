@@ -14,6 +14,7 @@
 *.ply
 *.png
 *.tsv
+*.csv
 
 *_log.txt
 
